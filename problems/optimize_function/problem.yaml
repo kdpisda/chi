@@ -1,0 +1,17 @@
+name: optimize_function
+description: >
+  Minimize the runtime of solve(xs) -> prefix sums of xs. Output must match
+  reference.py within tolerance on all held-out seeds. Any pure-Python or
+  stdlib approach is allowed; the shipped baseline is intentionally O(n^2).
+candidate: candidate.py
+entrypoints:
+  correctness: "python check.py {candidate} --seed {seed}"
+  benchmark: "python bench.py {candidate}"
+score:
+  metric: runtime_ms
+  direction: minimize
+  repeats: 5
+correctness:
+  seeds: [11, 27, 43]
+  tolerance: 1.0e-6
+timeout_seconds: 60
