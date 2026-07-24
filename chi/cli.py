@@ -193,6 +193,86 @@ def task_release(
     typer.echo("ok")
 
 
+# --- operator verbs ---------------------------------------------------------
+
+
+@app.command()
+def run(
+    fleet_path: Path = typer.Argument(..., help="Path to fleet.yaml"),
+    runs_root: Path = typer.Option(Path("runs"), "--runs-root"),
+) -> None:
+    """Start a run and print the summary as JSON."""
+    from dataclasses import asdict
+
+    from dotenv import load_dotenv
+
+    from chi.orchestrator.loop import start_run
+
+    load_dotenv()
+    summary = start_run(load_fleet(fleet_path), runs_root=runs_root)
+    out = asdict(summary)
+    out["run_dir"] = str(out["run_dir"])
+    typer.echo(json.dumps(out, indent=2))
+
+
+@app.command()
+def status(run_dir: Path = typer.Argument(...)) -> None:
+    """Print the run row and the last 10 events."""
+    store, run_id = _open_run(run_dir)
+    row = store.query("SELECT * FROM runs WHERE run_id=?", (run_id,))[0]
+    typer.echo(json.dumps(dict(row)))
+    for event in store.query(
+        "SELECT * FROM events WHERE run_id=? ORDER BY event_id DESC LIMIT 10", (run_id,)
+    ):
+        typer.echo(json.dumps(dict(event)))
+
+
+@app.command()
+def champion(
+    run_dir: Path = typer.Argument(...),
+    export: Path | None = typer.Option(None, "--export"),
+) -> None:
+    """Print the champion experiment; optionally export the current candidate."""
+    store, run_id = _open_run(run_dir)
+    problem = load_problem(run_dir / "workdir")
+    champ = ledger_mod.champion(store, run_id, problem.score.direction)
+    if champ is None:
+        typer.echo("no champion yet")
+        raise typer.Exit(1)
+    typer.echo(json.dumps({"code_hash": champ["code_hash"],
+                           "score_value": champ["score_value"]}))
+    if export is not None:
+        import shutil as _shutil
+
+        _shutil.copy(run_dir / "workdir" / problem.candidate, export)
+
+
+@app.command("ledger")
+def ledger_cmd(
+    run_dir: Path = typer.Argument(...),
+    negative: bool = typer.Option(False, "--negative"),
+) -> None:
+    """Print experiments (or the negative ledger) as JSON lines."""
+    store, run_id = _open_run(run_dir)
+    table = "negative_ledger" if negative else "experiments"
+    for row in store.query(f"SELECT * FROM {table} WHERE run_id=? ORDER BY ts", (run_id,)):
+        typer.echo(json.dumps(dict(row)))
+
+
+@app.command()
+def steer(
+    run_dir: Path = typer.Argument(...),
+    text: str = typer.Argument(...),
+) -> None:
+    """Append an operator directive to the run's steering.md."""
+    from chi.store.db import utcnow as _utcnow
+
+    path = run_dir / "steering.md"
+    existing = path.read_text() if path.exists() else ""
+    path.write_text(existing + f"\n## §op {_utcnow()}\n{text}\n")
+    typer.echo("ok")
+
+
 @app.command()
 def msg(
     run_dir: Path = typer.Option(..., "--run-dir"),
