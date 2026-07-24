@@ -1,0 +1,9 @@
+run_name: toy
+problem: problems/optimize_function
+budgets:
+  total_usd: 2.0
+  per_role_usd: { coder: 1.5 }
+coders:
+  - { id: c1, model: anthropic/claude-sonnet-5, adapter: litellm_loop }
+policies:
+  max_iterations: 10
