@@ -25,7 +25,10 @@ class Store:
         run_dir = Path(run_dir)
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "mirror").mkdir(exist_ok=True)
-        conn = sqlite3.connect(run_dir / "chi.db")
+        # check_same_thread=False: heartbeat threads write through this
+        # connection; CPython's sqlite3 is built serialized-threadsafe and we
+        # commit per statement, so cross-thread use is safe here.
+        conn = sqlite3.connect(run_dir / "chi.db", check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA busy_timeout=5000")
