@@ -61,3 +61,147 @@ def validate(path: Path = typer.Argument(..., help="fleet.yaml or a problem dire
     except Exception as exc:  # surface validation errors as CLI failure
         typer.echo(f"INVALID: {exc}")
         raise typer.Exit(1)
+
+
+# --- agent verbs: the ONLY write path agents get to the store ---------------
+
+from chi.store import events as events_mod  # noqa: E402
+from chi.store import ledger as ledger_mod  # noqa: E402
+from chi.store import tasks as tasks_mod  # noqa: E402
+from chi.store.db import Store  # noqa: E402
+
+task_app = typer.Typer(no_args_is_help=True, help="Task claim/release verbs for agents.")
+app.add_typer(task_app, name="task")
+
+
+def _open_run(run_dir: Path) -> tuple[Store, str]:
+    """Open a run store; ensure a runs row exists (run_id = directory name)."""
+    store = Store.open(run_dir)
+    rows = store.query("SELECT run_id FROM runs")
+    if rows:
+        return store, rows[0]["run_id"]
+    run_id = run_dir.name
+    from chi.store.db import utcnow
+
+    store.execute(
+        "INSERT INTO runs (run_id, problem, fleet_config_json, started_at)"
+        " VALUES (?,?,?,?)",
+        (run_id, str(run_dir / "workdir"), "{}", utcnow()),
+    )
+    return store, run_id
+
+
+@app.command("eval")
+def eval_cmd(
+    run_dir: Path = typer.Option(..., "--run-dir"),
+    agent: str = typer.Option(..., "--agent"),
+) -> None:
+    """Evaluate the run's workdir candidate; record and print the result."""
+    from dataclasses import asdict
+
+    from chi.eval.runner import evaluate
+
+    store, run_id = _open_run(run_dir)
+    problem = load_problem(run_dir / "workdir")
+    result = evaluate(problem, run_dir / "workdir", store=store, run_id=run_id, agent_id=agent)
+    typer.echo(json.dumps(asdict(result)))
+    raise typer.Exit(0 if result.correct else 2)
+
+
+@app.command()
+def query(
+    text: str = typer.Argument(...),
+    run_dir: Path = typer.Option(..., "--run-dir"),
+) -> None:
+    """Query experiments and the negative ledger."""
+    store, run_id = _open_run(run_dir)
+    typer.echo(json.dumps(ledger_mod.query_knowledge(store, run_id, text)))
+
+
+@app.command()
+def deadend(
+    run_dir: Path = typer.Option(..., "--run-dir"),
+    agent: str = typer.Option(..., "--agent"),
+    approach_class: str = typer.Option(..., "--approach-class"),
+    summary: str = typer.Option(..., "--summary"),
+    evidence_json: str = typer.Option("", "--evidence-json"),
+    scope: str = typer.Option("", "--scope"),
+) -> None:
+    """Record a ruled-out approach. Evidence is mandatory — no prose-only dead ends."""
+    evidence = json.loads(evidence_json) if evidence_json else {}
+    if not evidence:
+        typer.echo("REJECTED: dead-end entries require non-empty --evidence-json")
+        raise typer.Exit(1)
+    store, run_id = _open_run(run_dir)
+    neg_id = ledger_mod.add_negative(
+        store, run_id, approach_class=approach_class, summary=summary,
+        evidence=evidence, authored_by=agent, ruled_out_scope=scope,
+    )
+    typer.echo(neg_id)
+
+
+@app.command()
+def challenge(
+    run_dir: Path = typer.Option(..., "--run-dir"),
+    agent: str = typer.Option(..., "--agent"),
+    neg_id: str = typer.Option(..., "--neg-id"),
+    hypothesis: str = typer.Option(..., "--hypothesis"),
+) -> None:
+    """File a distinguishing hypothesis against a negative-ledger entry."""
+    store, run_id = _open_run(run_dir)
+    typer.echo(ledger_mod.add_challenge(store, run_id, neg_id=neg_id, agent_id=agent,
+                                        hypothesis=hypothesis))
+
+
+@app.command()
+def heartbeat(
+    run_dir: Path = typer.Option(..., "--run-dir"),
+    agent: str = typer.Option(..., "--agent"),
+) -> None:
+    """Record agent liveness."""
+    from chi.store.db import utcnow
+
+    store, run_id = _open_run(run_dir)
+    store.execute("UPDATE agents SET last_heartbeat_at=? WHERE agent_id=? AND run_id=?",
+                  (utcnow(), agent, run_id))
+    events_mod.append_event(store, run_id, events_mod.HEARTBEAT, agent_id=agent)
+    typer.echo("ok")
+
+
+@task_app.command("claim")
+def task_claim(
+    run_dir: Path = typer.Option(..., "--run-dir"),
+    agent: str = typer.Option(..., "--agent"),
+    lease_seconds: int = typer.Option(900, "--lease-seconds"),
+) -> None:
+    """Atomically claim the next pending task; prints its id (or NONE)."""
+    store, run_id = _open_run(run_dir)
+    task_id = tasks_mod.claim_task(store, run_id, agent, lease_seconds)
+    typer.echo(task_id or "NONE")
+    raise typer.Exit(0 if task_id else 1)
+
+
+@task_app.command("release")
+def task_release(
+    run_dir: Path = typer.Option(..., "--run-dir"),
+    task_id: str = typer.Option(..., "--task-id"),
+    to_status: str = typer.Option("pending", "--to-status"),
+) -> None:
+    """Release a task back to the pool (or to a terminal status)."""
+    store, run_id = _open_run(run_dir)
+    tasks_mod.release_task(store, run_id, task_id, status=to_status)
+    typer.echo("ok")
+
+
+@app.command()
+def msg(
+    run_dir: Path = typer.Option(..., "--run-dir"),
+    agent: str = typer.Option(..., "--agent"),
+    type_: str = typer.Option("STATUS", "--type"),
+    payload_json: str = typer.Option("{}", "--payload-json"),
+) -> None:
+    """Post a typed message event to the bus."""
+    store, run_id = _open_run(run_dir)
+    events_mod.append_event(store, run_id, type_, agent_id=agent,
+                            payload=json.loads(payload_json))
+    typer.echo("ok")
