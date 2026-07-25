@@ -108,12 +108,18 @@ async def test_working_indicator_while_operator_thinks(tmp_path: Path) -> None:
         for ch in "hi":
             await pilot.press(ch)
         await pilot.press("enter")
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.7)
         await pilot.pause()
         assert app._busy_count == 1  # spinner active while the operator thinks
+        from textual.widgets import Static
+
+        activity = app.query_one("#activity", Static)
+        assert activity.display is True  # inline line right below the user's query
         await _wait_for(app, "done", timeout_s=15.0)
+        await asyncio.sleep(0.8)  # let the next pump tick hide the activity line
         await pilot.pause()
         assert app._busy_count == 0
+        assert activity.display is False
 
 
 async def test_escape_returns_focus_to_prompt(tmp_path: Path) -> None:

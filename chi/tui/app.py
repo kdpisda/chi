@@ -247,6 +247,7 @@ class ChiApp(App):
     #header-text { width: 1fr; }
     #transcript { height: 1fr; padding: 1 2 0 2; border: none;
                   background: transparent; scrollbar-size-vertical: 1; }
+    #activity { height: 1; padding: 0 2; color: $accent; display: none; }
     #prompt-rule { margin: 0 1; color: $foreground 20%; }
     #prompt-row { height: 1; padding: 0 1; }
     #prompt-prefix { width: 2; color: $accent; text-style: bold; }
@@ -294,6 +295,7 @@ class ChiApp(App):
             yield Static(LOGO, id="logo")
             yield Static("", id="header-text")
         yield RichLog(id="transcript", wrap=True)
+        yield Static("", id="activity")
         yield Rule(id="prompt-rule")
         with Horizontal(id="prompt-row"):
             yield Static("›", id="prompt-prefix")
@@ -435,14 +437,14 @@ class ChiApp(App):
             self._write(line)
         snap = self.engine.snapshot()
         telemetry = self._telemetry(snap)
+        activity = self.query_one("#activity", Static)
         if self._busy_count > 0 and self._busy_since is not None:
             elapsed = int(time.monotonic() - self._busy_since)
             note = self.engine.busy_note or "working"
-            status = f"{next(self._spinner)} {note}… {elapsed}s"
-            if telemetry:
-                status += f" · {telemetry}"
-            self.query_one("#status", Static).update(status)
-            return
+            activity.update(f"{next(self._spinner)} {note}… {elapsed}s")
+            activity.display = True
+        else:
+            activity.display = False
         if snap["active"]:
             best = snap["best"] if snap["best"] is not None else "—"
             status = f"● running {snap['run_id'] or '(starting)'} · best {best}"

@@ -68,7 +68,9 @@ def test_run_streams_events_and_finishes(tmp_path: Path) -> None:
 
 
 def test_run_refused_while_active_and_free_text_steers(tmp_path: Path) -> None:
-    fleet = _write_fleet(tmp_path, [NAIVE, NAIVE, GOOD], max_iterations=3)
+    # enough iterations that the run is reliably still alive for the refusal check,
+    # even under full-suite load
+    fleet = _write_fleet(tmp_path, [NAIVE, NAIVE, GOOD], max_iterations=10)
     engine = SessionEngine(runs_root=tmp_path / "runs")
     engine.submit(f"/run {fleet}")
     # wait until the run dir exists
