@@ -12,7 +12,8 @@ from chi.providers.llm import ping as _ping_impl
 from chi.tui.picker import PickerUnavailable, fuzzy_select
 from chi.userconfig import load_env, load_user_config, save_user_config, set_credential
 
-app = typer.Typer(no_args_is_help=True, help="Chi (χ) — autoresearch harness.")
+# no_args_is_help intentionally off: bare `chi` opens the interactive session
+app = typer.Typer(help="Chi (χ) — autoresearch harness.")
 
 
 @app.callback(invoke_without_command=True)
