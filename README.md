@@ -10,15 +10,25 @@ caps, two-layer steering, deterministic watchdog.
 
 ## Quick start
 
-    uv venv --python 3.12 && uv pip install -e ".[dev]"
-    cp .env.example .env          # add your provider keys
-    uv run chi validate examples/fleet.yaml
-    uv run chi ping --fleet examples/fleet.yaml
-    uv run chi run examples/fleet.yaml
+    uv tool install --editable .   # or: uv venv --python 3.12 && uv pip install -e ".[dev]"
+    chi                            # opens the interactive session
 
-While a run is live, steer it (optional — runs are unattended by default):
+Inside the session:
 
-    uv run chi steer runs/<run_id> "stop micro-tuning; try itertools"
+    /vendors            pick providers (fuzzy); store keys with `chi providers --set-key X`
+    /models             pick coder models — saved as your global defaults
+    /run fleet.yaml     start a run; iteration results stream in live
+    just type           plain text while a run is active becomes a steering directive
+    /stop  /status  /ledger  /champion  /quit
+
+Everything also works non-interactively for scripts and CI:
+
+    chi providers --enable anthropic,deepseek
+    chi models --pick anthropic/claude-sonnet-5,claude
+    chi validate examples/fleet.yaml
+    chi ping --fleet examples/fleet.yaml
+    chi run examples/fleet.yaml
+    chi steer runs/<run_id> "stop micro-tuning; try itertools"
 
 Inspect results:
 

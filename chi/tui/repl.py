@@ -1,0 +1,77 @@
+"""Interactive chi session: prompt_toolkit REPL over the session engine."""
+
+import threading
+import time
+from typing import Callable
+
+from chi.session.engine import SessionEngine
+
+BANNER = """\
+chi (χ) — autoresearch harness. /help for commands, /quit to leave.
+Plain text steers the active run; conversational mode arrives next."""
+
+
+def run_repl(
+    engine: SessionEngine | None = None,
+    prompt_fn: Callable[[], str] | None = None,
+) -> None:
+    """Run the interactive session until /quit or EOF.
+
+    prompt_fn is injectable for tests; the default builds a prompt_toolkit
+    session with slash-command completion and a live event pump.
+    """
+    engine = engine or SessionEngine()
+    print(BANNER)
+
+    stop_pump = threading.Event()
+
+    def _pump() -> None:
+        while not stop_pump.wait(1.0):
+            for line in engine.poll_events():
+                print(line)
+
+    if prompt_fn is None:
+        from prompt_toolkit import PromptSession
+        from prompt_toolkit.completion import WordCompleter
+        from prompt_toolkit.patch_stdout import patch_stdout
+
+        session: "PromptSession[str]" = PromptSession(
+            completer=WordCompleter(sorted(engine.commands), sentence=True)
+        )
+
+        def _default_prompt() -> str:
+            return session.prompt("chi> ")
+
+        prompt_fn = _default_prompt
+        pump_ctx = patch_stdout
+    else:
+        from contextlib import nullcontext
+
+        pump_ctx = nullcontext
+
+    pump = threading.Thread(target=_pump, daemon=True)
+    pump.start()
+    try:
+        with pump_ctx():
+            while not engine.quit_requested:
+                try:
+                    text = prompt_fn()
+                except KeyboardInterrupt:
+                    continue  # clear the current line, like other REPLs
+                except EOFError:
+                    if engine.has_active_run():
+                        print("a run is active — /stop it first, or Ctrl-D again to detach")
+                        try:
+                            text = prompt_fn()
+                        except EOFError:
+                            break
+                    else:
+                        break
+                for line in engine.submit(text):
+                    print(line)
+    finally:
+        stop_pump.set()
+        # drain anything the pump missed so the transcript is complete
+        for line in engine.poll_events():
+            print(line)
+        time.sleep(0)  # let the pump thread observe the stop event
