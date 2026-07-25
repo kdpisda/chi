@@ -11,7 +11,12 @@ caps, two-layer steering, deterministic watchdog.
 ## Quick start
 
     uv tool install --editable .   # or: uv venv --python 3.12 && uv pip install -e ".[dev]"
-    chi                            # opens the interactive session
+    chi                            # opens the full-terminal session (Textual UI)
+
+The session has a Claude Code-style interface: scrolling transcript, bottom
+input with a slash-command dropdown, live status bar, and modal fuzzy pickers.
+`chi --plain` gives a minimal line-based REPL (also used automatically when
+stdout is not a terminal).
 
 Inside the session:
 

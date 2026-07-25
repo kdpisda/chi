@@ -17,13 +17,23 @@ app = typer.Typer(help="Chi (χ) — autoresearch harness.")
 
 
 @app.callback(invoke_without_command=True)
-def _main(ctx: typer.Context) -> None:
+def _main(
+    ctx: typer.Context,
+    plain: bool = typer.Option(False, "--plain", help="Plain REPL instead of the full UI"),
+) -> None:
     """Chi (χ) — autoresearch harness. Bare `chi` opens the interactive session."""
     if ctx.invoked_subcommand is None:
-        from chi.tui.repl import run_repl
+        import sys
 
         load_env()
-        run_repl()
+        if plain or not sys.stdout.isatty():
+            from chi.tui.repl import run_repl
+
+            run_repl()
+        else:
+            from chi.tui.app import run_app
+
+            run_app()
 
 
 @app.command()

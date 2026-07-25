@@ -63,6 +63,14 @@ class SessionEngine:
         """True while a run is executing."""
         return self._handle is not None and self._handle.alive
 
+    def snapshot(self) -> dict:
+        """Cheap status snapshot for frontends (status bars, headers)."""
+        return {
+            "active": self.has_active_run(),
+            "run_id": self._handle.run_id if self._handle is not None else None,
+            "best": self._best_score,
+        }
+
     def poll_events(self) -> list[str]:
         """New formatted run events since the last poll (empty when idle)."""
         if self._handle is None:
