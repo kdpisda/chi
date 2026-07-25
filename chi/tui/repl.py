@@ -8,7 +8,7 @@ from chi.session.engine import SessionEngine
 
 BANNER = """\
 chi (χ) — autoresearch harness. /help for commands, /quit to leave.
-Plain text steers the active run; conversational mode arrives next."""
+Plain text talks to chi — name a problem directory to start a run."""
 
 
 def run_repl(

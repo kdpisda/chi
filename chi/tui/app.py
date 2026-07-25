@@ -292,7 +292,8 @@ class ChiApp(App):
         yield Rule(id="prompt-rule")
         with Horizontal(id="prompt-row"):
             yield Static("›", id="prompt-prefix")
-            prompt = PromptInput(placeholder="/help for commands — plain text steers", id="prompt")
+            prompt = PromptInput(placeholder="tell chi what to optimize — /help for commands",
+                                 id="prompt")
             yield prompt
         yield Static("", id="status")
         yield AutoComplete(target=prompt, candidates=self._candidates)

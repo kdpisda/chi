@@ -103,7 +103,8 @@ def test_stop_ends_run_early(tmp_path: Path) -> None:
 def test_quit_guard_and_idle_free_text(tmp_path: Path) -> None:
     engine = SessionEngine(runs_root=tmp_path / "runs")
     out = engine.submit("hello chi")
-    assert any("no active run" in line for line in out)
+    # unconfigured session: conversation is gated on model setup
+    assert any("chi needs models" in line for line in out)
     assert engine.submit("/quit") == ["bye"]
     assert engine.quit_requested is True
 

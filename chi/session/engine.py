@@ -24,6 +24,8 @@ class SessionEngine:
         self.picker_fn = picker_fn
         self.ask_fn: Callable | None = None  # frontends: (question, options) -> value|None
         self.secret_fn: Callable | None = None  # frontends: (prompt) -> secret|None
+        self.completion_fn: Callable | None = None  # test seam for the operator LLM
+        self._operator_chat = None
         self.quit_requested = False
         self._quit_after_stop = False
         self._handle: RunHandle | None = None
@@ -194,7 +196,8 @@ class SessionEngine:
             "/models roles       assign models to orchestrator/planner/critic/researcher",
             "/quit               leave the session (also: exit, quit, /exit)",
             "",
-            "Plain text while a run is active becomes a steering directive.",
+            "Plain text talks to chi: name a problem directory to start a run,",
+            "give direction mid-run (chi steers the agents), ask about results.",
         ]
 
     def _cmd_vendors(self, args: str) -> list[str]:
@@ -221,6 +224,7 @@ class SessionEngine:
             return lines + ["(picker unavailable — use `chi providers --enable a,b`)"]
         cfg.enabled_providers = picked
         save_user_config(cfg)
+        self._operator_chat = None
         return lines + [f"enabled: {', '.join(picked) or '(none)'}"]
 
     def _candidate_models(self) -> list:
@@ -280,6 +284,7 @@ class SessionEngine:
         cfg = load_user_config()
         cfg.default_coders = coders
         save_user_config(cfg)
+        self._operator_chat = None
         return [f"saved {len(coders)} default coder(s):"] + [
             f"  {c.id}: {c.model} ({c.adapter})" for c in coders
         ]
@@ -315,6 +320,7 @@ class SessionEngine:
         cfg = load_user_config()
         cfg.role_models[role] = picked[0]
         save_user_config(cfg)
+        self._operator_chat = None
         return [f"{role}: {picked[0]}"]
 
     def _cmd_setup(self, args: str) -> list[str]:
@@ -336,6 +342,7 @@ class SessionEngine:
         cfg.default_coders = coders
         cfg.role_models = {**cfg.role_models, **role_models}
         save_user_config(cfg)
+        self._operator_chat = None
         return ["applied recommended setup:"] + summary
 
     def maybe_first_run_setup(self) -> list[str]:
@@ -361,11 +368,13 @@ class SessionEngine:
                 cfg.default_coders = coders
                 cfg.role_models = role_models
                 save_user_config(cfg)
+                self._operator_chat = None
                 return ["applied recommended setup:"] + summary
             return ["nothing detected to recommend:"] + summary
         if choice == "manual":
             return self._cmd_models("")
-        return ["skipped — /setup anytime"]
+        return ["skipped — note: chi can't chat or start runs until models are"
+                " configured; /setup or /models when ready"]
 
     def _cmd_setkey(self, args: str) -> list[str]:
         import os
@@ -390,12 +399,36 @@ class SessionEngine:
         return [f"stored {env_var} in {path} (0600) — {provider} is ready"]
 
     def _cmd_run(self, args: str) -> list[str]:
-        if self.has_active_run():
-            return ["error: a run is already active — /stop it first"]
         fleet_path = Path(args.strip()) if args.strip() else Path("fleet.yaml")
         if not fleet_path.exists():
             return [f"error: {fleet_path} not found — pass a path: /run path/to/fleet.yaml"]
-        fleet = load_fleet(fleet_path)
+        return self._launch(load_fleet(fleet_path), source=str(fleet_path))
+
+    def launch_problem(self, problem_dir: str, max_iterations: int | None = None) -> list[str]:
+        """Start a run on a problem directory using the configured default coders."""
+        from chi.config import BudgetsCfg, FleetConfig, PoliciesCfg, resolve_coders
+        from chi.userconfig import load_user_config
+
+        path = Path(problem_dir).expanduser()
+        if not (path / "problem.yaml").exists():
+            return [f"error: {path} is not a problem directory (no problem.yaml)"]
+        cfg = load_user_config()
+        policies = PoliciesCfg(max_iterations=max_iterations) if max_iterations \
+            else PoliciesCfg()
+        fleet = FleetConfig(
+            run_name=path.name, problem=path,
+            budgets=BudgetsCfg(total_usd=cfg.default_budget_usd),
+            coders=[], policies=policies,
+        )
+        try:
+            resolve_coders(fleet)  # fail before launching when nothing is configured
+        except ValueError as exc:
+            return [f"error: {exc}"]
+        return self._launch(fleet, source=str(path))
+
+    def _launch(self, fleet, source: str) -> list[str]:
+        if self.has_active_run():
+            return ["error: a run is already active — /stop it first"]
         self._handle = RunHandle(fleet, self.runs_root)
         self._reader = None
         self._cursor = 0
@@ -411,7 +444,7 @@ class SessionEngine:
         except (FileNotFoundError, ValueError):
             self._direction = "minimize"
         self._handle.start()
-        return [f"starting run from {fleet_path} …"]
+        return [f"starting run from {source} …"]
 
     def _cmd_status(self, args: str) -> list[str]:
         if self.has_active_run() and self._handle is not None:
@@ -426,8 +459,9 @@ class SessionEngine:
     def _cmd_steer(self, args: str) -> list[str]:
         if not args.strip():
             return ["usage: /steer <directive>"]
-        if self.has_active_run():
-            return self._free_text(args.strip())
+        if self.has_active_run() and self._handle is not None and self._handle.run_dir:
+            self._append_steering(self._handle.run_dir, args.strip())
+            return ["steering directive queued for the next iteration"]
         if self._last_run_dir is not None:
             self._append_steering(self._last_run_dir, args.strip())
             return [f"directive written to {self._last_run_dir.name}/steering.md —"
@@ -539,14 +573,54 @@ class SessionEngine:
 
     # -- free text -----------------------------------------------------------
 
+    def record_operator_usage(self, result, context_limit: int | None) -> None:
+        """Fold operator-LLM usage into the session telemetry (footer)."""
+        self._tokens_in += result.tokens_in
+        self._tokens_out += result.tokens_out
+        self._cost_usd += result.cost_usd
+        if context_limit:
+            self._context_pct = 100.0 * result.tokens_in / context_limit
+
+    def _operator(self):
+        """Lazily build the operator chat; None when no API model can drive it."""
+        if self._operator_chat is not None:
+            return self._operator_chat
+        from chi.userconfig import load_user_config
+
+        cfg = load_user_config()
+        model = cfg.role_models.get("orchestrator")
+        if model is None:
+            model = next(
+                (c.model for c in cfg.default_coders if c.adapter == "litellm_loop"), None
+            )
+        if model is None:
+            return None
+        from chi.providers.budgets import BudgetTracker
+        from chi.session.operator import OperatorChat, fleet_summary_text
+
+        self._operator_chat = OperatorChat(
+            self, model, BudgetTracker(cfg.default_budget_usd),
+            completion_fn=self.completion_fn, fleet_summary=fleet_summary_text(),
+        )
+        return self._operator_chat
+
     def _free_text(self, text: str) -> list[str]:
-        if self.has_active_run() and self._handle is not None and self._handle.run_dir:
-            self._append_steering(self._handle.run_dir, text)
-            return ["steering directive queued for the next iteration"]
-        return [
-            "no active run — /run to start one, /resume to pick up a past session",
-            "(conversational mode is coming in the next iteration of chi)",
-        ]
+        from chi.providers.budgets import BudgetExceededError
+        from chi.userconfig import load_user_config
+
+        operator = self._operator()
+        if operator is None:
+            if not load_user_config().default_coders:
+                return ["chi needs models before it can work — /setup applies the"
+                        " recommended fleet, or /models to pick manually"]
+            return ["the conversational operator needs an API model (a CLI coder can't"
+                    " drive it) — /setkey <provider>, then /models roles (orchestrator)"
+                    " or add an API coder via /models"]
+        try:
+            return operator.turn(text)
+        except BudgetExceededError as exc:
+            return [f"error: {exc} — raise default_budget_usd in"
+                    " ~/.config/chi/config.yaml to continue"]
 
     @staticmethod
     def _append_steering(run_dir: Path, text: str) -> None:

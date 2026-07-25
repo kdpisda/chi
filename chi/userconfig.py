@@ -87,6 +87,7 @@ class UserConfig(BaseModel):
     enabled_providers: list[str] = Field(default_factory=list)
     default_coders: list[CoderCfg] = Field(default_factory=list)
     role_models: dict[str, str] = Field(default_factory=dict)  # orchestrator/planner/…
+    default_budget_usd: float = 5.0  # cap for conversation + ephemeral runs
 
 
 def _config_path() -> Path:
