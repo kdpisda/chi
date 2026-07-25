@@ -28,6 +28,10 @@ class SeedContext:
 class IterationOutcome:
     evals_run: int
     note: str = ""
+    tokens_in: int = 0
+    tokens_out: int = 0
+    cost_usd: float = 0.0
+    context_pct: float | None = None  # last prompt size vs model context limit
 
 
 class CoderAdapter(ABC):

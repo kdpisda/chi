@@ -142,7 +142,11 @@ def start_run(
                             task_id=task_id,
                             payload={"iteration": iteration, "evals_run": outcome.evals_run,
                                      "note": outcome.note,
-                                     "steering_hash": state.operator_hash})
+                                     "context_pct": outcome.context_pct,
+                                     "steering_hash": state.operator_hash},
+                            cost_usd=outcome.cost_usd,
+                            tokens_in=outcome.tokens_in,
+                            tokens_out=outcome.tokens_out)
         candidate_hash = code_hash((workdir / problem.candidate).read_text())
         verdict = watchdog.observe_iteration(new_evals=outcome.evals_run,
                                              candidate_hash=candidate_hash)

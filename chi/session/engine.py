@@ -22,11 +22,17 @@ class SessionEngine:
 
         self.runs_root = Path(runs_root) if runs_root is not None else default_runs_root()
         self.picker_fn = picker_fn
+        self.ask_fn: Callable | None = None  # frontends: (question, options) -> value|None
         self.quit_requested = False
+        self._quit_after_stop = False
         self._handle: RunHandle | None = None
         self._reader: Store | None = None
         self._cursor = 0
         self._best_score: float | None = None
+        self._tokens_in = 0
+        self._tokens_out = 0
+        self._cost_usd = 0.0
+        self._context_pct: float | None = None
         self._direction = "minimize"
         self._last_run_dir: Path | None = None
         self.commands: dict[str, Callable[[str], list[str]]] = {
@@ -75,6 +81,10 @@ class SessionEngine:
             "active": self.has_active_run(),
             "run_id": self._handle.run_id if self._handle is not None else None,
             "best": self._best_score,
+            "tokens_in": self._tokens_in,
+            "tokens_out": self._tokens_out,
+            "cost_usd": self._cost_usd,
+            "context_pct": self._context_pct,
         }
 
     def poll_events(self) -> list[str]:
@@ -97,6 +107,13 @@ class SessionEngine:
         )
         for row in rows:
             self._cursor = row["event_id"]
+            self._tokens_in += row["tokens_in"]
+            self._tokens_out += row["tokens_out"]
+            self._cost_usd += row["cost_usd"]
+            if row["type"] == "ITERATION_COMPLETE":
+                pct = json.loads(row["payload_json"]).get("context_pct")
+                if pct is not None:
+                    self._context_pct = pct
             formatted = self._format_event(row)
             if formatted is not None:
                 lines.append(formatted)
@@ -111,6 +128,10 @@ class SessionEngine:
             self._reader = None
             self._cursor = 0
             self._best_score = None
+            if self._quit_after_stop:
+                self._quit_after_stop = False
+                self.quit_requested = True
+                lines.append("bye")
         return lines
 
     # -- event formatting --------------------------------------------------
@@ -239,6 +260,10 @@ class SessionEngine:
         self._reader = None
         self._cursor = 0
         self._best_score = None
+        self._tokens_in = 0
+        self._tokens_out = 0
+        self._cost_usd = 0.0
+        self._context_pct = None
         try:
             from chi.config import load_problem
 
@@ -351,8 +376,23 @@ class SessionEngine:
             return ["no champion yet"]
         return [f"champion: {champ['score_value']} ({champ['code_hash'][:18]}…)"]
 
+    def _ask(self, question: str, options: list[tuple[str, str]]) -> str | None:
+        """Single-choice question to the operator; None when no frontend can ask."""
+        if self.ask_fn is None:
+            return None
+        return self.ask_fn(question, options)
+
     def _cmd_quit(self, args: str) -> list[str]:
         if self.has_active_run():
+            choice = self._ask(
+                "A run is active — quit anyway?",
+                [("stop", "Stop the run, then quit"),
+                 ("stay", "Keep running (stay in the session)")],
+            )
+            if choice == "stop" and self._handle is not None:
+                self._handle.request_stop()
+                self._quit_after_stop = True
+                return ["stopping the run — chi quits when it lands"]
             return ["a run is active — /stop it first (or wait for it to finish)"]
         self.quit_requested = True
         return ["bye"]

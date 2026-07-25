@@ -43,6 +43,21 @@ def run_repl(
             history=FileHistory(str(history_path())),
         )
 
+        if engine.ask_fn is None:
+            def _ask(question: str, options: list[tuple[str, str]]) -> str | None:
+                print(question)
+                for n, (_, label) in enumerate(options, start=1):
+                    print(f"  {n}. {label}")
+                try:
+                    raw = input(f"choose 1-{len(options)} (blank cancels): ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    return None
+                if raw.isdigit() and 1 <= int(raw) <= len(options):
+                    return options[int(raw) - 1][0]
+                return None
+
+            engine.ask_fn = _ask
+
         def _default_prompt() -> str:
             return session.prompt("chi> ")
 

@@ -68,10 +68,27 @@ Current candidate source:
 class LiteLLMLoopAdapter(CoderAdapter):
     """Tools-in-a-loop over any LiteLLM-routable model."""
 
-    def __init__(self, *args: Any, completion_fn: Callable | None = None, **kwargs: Any) -> None:
+    CONTEXT_GUARD = 0.8  # stop the iteration when the prompt passes this fill ratio
+
+    def __init__(self, *args: Any, completion_fn: Callable | None = None,
+                 context_limit: int | None = None, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.completion_fn = completion_fn
         self.max_tool_calls = 15
+        self._context_limit = context_limit
+
+    def context_limit(self) -> int | None:
+        """Model context size in tokens (explicit override, else litellm registry)."""
+        if self._context_limit is not None:
+            return self._context_limit
+        try:
+            import litellm
+
+            info = litellm.model_cost.get(self.model) or {}
+            limit = info.get("max_input_tokens") or info.get("max_tokens")
+            return int(limit) if limit else None
+        except (ImportError, TypeError, ValueError):
+            return None
 
     def run_iteration(self, seed: SeedContext) -> IterationOutcome:
         """One improvement session: chat until no tool calls or the cap hits."""
@@ -92,10 +109,25 @@ class LiteLLMLoopAdapter(CoderAdapter):
         ]
         evals_run = 0
         calls = 0
+        tokens_in = tokens_out = 0
+        cost_usd = 0.0
+        context_pct: float | None = None
+        note = ""
+        limit = self.context_limit()
         while calls < self.max_tool_calls:
             result = chat(self.model, messages, budget=self.budget, tools=TOOLS,
                           completion_fn=self.completion_fn)
             self.heartbeat()
+            tokens_in += result.tokens_in
+            tokens_out += result.tokens_out
+            cost_usd += result.cost_usd
+            if limit:
+                context_pct = 100.0 * result.tokens_in / limit
+                if result.tokens_in >= self.CONTEXT_GUARD * limit:
+                    # per-design context strategy: end the iteration; the next one
+                    # respawns from a fresh seed context built from the store
+                    note = f"context guard at {context_pct:.0f}% — fresh context next iteration"
+                    break
             tool_calls = getattr(result.message, "tool_calls", None)
             if not tool_calls:
                 break
@@ -115,7 +147,10 @@ class LiteLLMLoopAdapter(CoderAdapter):
                 output, did_eval = self._dispatch(name, args)
                 evals_run += int(did_eval)
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": output})
-        return IterationOutcome(evals_run=evals_run)
+        return IterationOutcome(
+            evals_run=evals_run, note=note, tokens_in=tokens_in, tokens_out=tokens_out,
+            cost_usd=cost_usd, context_pct=context_pct,
+        )
 
     def _safe_path(self, rel: str) -> Path | None:
         """Resolve a path inside the workdir; None if it escapes."""

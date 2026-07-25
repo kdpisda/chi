@@ -63,6 +63,45 @@ class PromptInput(Input):
         self.cursor_position = len(self.value)
 
 
+class QuestionScreen(ModalScreen[str | None]):
+    """Single-choice question with a toggler, Claude Code / codex style."""
+
+    BINDINGS = [Binding("escape", "cancel", "cancel", priority=True)]
+
+    def __init__(self, question: str, options: list[tuple[str, str]]) -> None:
+        super().__init__()
+        self._question = question
+        self._options = options
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="qdialog"):
+            yield Static(self._question, id="q-title")
+            yield OptionList(
+                *[Option(f"{n}. {label}", id=value)
+                  for n, (value, label) in enumerate(self._options, start=1)],
+                id="q-options",
+            )
+            yield Static("↑↓ toggle · enter select · 1-9 quick pick · esc cancel", id="q-hint")
+
+    def on_mount(self) -> None:
+        options = self.query_one("#q-options", OptionList)
+        options.highlighted = 0
+        options.focus()
+
+    def on_key(self, event) -> None:
+        if event.key.isdigit():
+            index = int(event.key) - 1
+            if 0 <= index < len(self._options):
+                event.stop()
+                self.dismiss(self._options[index][0])
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        self.dismiss(event.option.id)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class PickScreen(ModalScreen[list]):
     """Filterable selection modal (checkbox list for multi, option list for single)."""
 
@@ -165,6 +204,12 @@ class ChiApp(App):
     #pick-title { text-style: bold; }
     #pick-hint { color: $text-muted; }
     #pick-list { height: 1fr; }
+    QuestionScreen { align: center middle; }
+    #qdialog { width: 64; max-width: 90%; height: auto; border: round $accent;
+               background: $surface; padding: 1 2; }
+    #q-title { text-style: bold; margin-bottom: 1; }
+    #q-options { height: auto; }
+    #q-hint { color: $text-muted; margin-top: 1; }
     """
     BINDINGS = [Binding("ctrl+c", "request_quit", "quit", priority=True)]
 
@@ -172,6 +217,7 @@ class ChiApp(App):
         super().__init__()
         self.engine = engine or SessionEngine()
         self.engine.picker_fn = self._pick_from_thread
+        self.engine.ask_fn = self._ask_from_thread
         self.transcript_lines: list[str] = []  # plain mirror, used by tests
 
     def compose(self) -> ComposeResult:
@@ -263,16 +309,40 @@ class ChiApp(App):
 
     # -- live pump ------------------------------------------------------------
 
+    @staticmethod
+    def _fmt_tokens(n: int) -> str:
+        return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
+
+    def _telemetry(self, snap: dict) -> str:
+        parts: list[str] = []
+        if snap["context_pct"] is not None:
+            parts.append(f"ctx {snap['context_pct']:.0f}%")
+        if snap["tokens_in"] or snap["tokens_out"]:
+            parts.append(f"{self._fmt_tokens(snap['tokens_in'])}↑"
+                         f" {self._fmt_tokens(snap['tokens_out'])}↓")
+        if snap["cost_usd"]:
+            parts.append(f"${snap['cost_usd']:.3f}")
+        return " · ".join(parts)
+
     def _pump(self) -> None:
+        if self.engine.quit_requested:
+            self.exit()
+            return
         for line in self.engine.poll_events():
             self._write(line)
         snap = self.engine.snapshot()
+        telemetry = self._telemetry(snap)
         if snap["active"]:
             best = snap["best"] if snap["best"] is not None else "—"
-            status = (f"● running {snap['run_id'] or '(starting)'} · best {best}"
-                      " · /stop to interrupt · plain text steers")
+            status = f"● running {snap['run_id'] or '(starting)'} · best {best}"
+            if telemetry:
+                status += f" · {telemetry}"
+            status += " · /stop to interrupt · plain text steers"
         else:
-            status = "▸ idle · /run start · /resume sessions · /help commands · exit quits"
+            status = "▸ idle"
+            if telemetry:
+                status += f" · last run {telemetry}"
+            status += " · /run start · /resume sessions · /help commands · exit quits"
         self.query_one("#status", Static).update(status)
 
     # -- picker bridge (called from the submit worker thread) ---------------
@@ -292,6 +362,21 @@ class ChiApp(App):
         self.call_from_thread(show)
         done.wait(timeout=600)
         return result
+
+    def _ask_from_thread(self, question: str, options: list[tuple[str, str]]) -> str | None:
+        result: list[str | None] = []
+        done = threading.Event()
+
+        def show() -> None:
+            def finished(value: str | None) -> None:
+                result.append(value)
+                done.set()
+
+            self.push_screen(QuestionScreen(question, options), finished)
+
+        self.call_from_thread(show)
+        done.wait(timeout=600)
+        return result[0] if result else None
 
     def action_request_quit(self) -> None:
         if self.engine.has_active_run():
