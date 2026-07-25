@@ -108,6 +108,15 @@ def test_quit_guard_and_idle_free_text(tmp_path: Path) -> None:
     assert engine.quit_requested is True
 
 
+def test_bare_exit_and_quit_words_quit(tmp_path: Path) -> None:
+    for word in ("exit", "quit", "EXIT", " Quit "):
+        engine = SessionEngine(runs_root=tmp_path / "runs")
+        assert engine.submit(word) == ["bye"]
+        assert engine.quit_requested is True
+    engine = SessionEngine(runs_root=tmp_path / "runs")
+    assert engine.submit("/exit") == ["bye"]
+
+
 def test_status_and_champion_after_run(tmp_path: Path) -> None:
     fleet = _write_fleet(tmp_path, [GOOD], max_iterations=1)
     engine = SessionEngine(runs_root=tmp_path / "runs")

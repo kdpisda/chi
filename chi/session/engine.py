@@ -39,6 +39,7 @@ class SessionEngine:
             "/ledger": self._cmd_ledger,
             "/champion": self._cmd_champion,
             "/quit": self._cmd_quit,
+            "/exit": self._cmd_quit,
         }
 
     # -- public interface ------------------------------------------------
@@ -48,6 +49,8 @@ class SessionEngine:
         text = text.strip()
         if not text:
             return []
+        if text.lower() in ("exit", "quit"):
+            return self._cmd_quit("")
         if text.startswith("/"):
             parts = text.split(maxsplit=1)
             handler = self.commands.get(parts[0])
@@ -158,7 +161,7 @@ class SessionEngine:
             "/stop               stop the active run at the next iteration",
             "/ledger [negative]  show experiments or dead-ends",
             "/champion           show the best candidate",
-            "/quit               leave the session",
+            "/quit               leave the session (also: exit, quit, /exit)",
             "",
             "Plain text while a run is active becomes a steering directive.",
         ]
