@@ -71,7 +71,9 @@ def test_free_text_starts_run_via_operator(tmp_path: Path) -> None:
         _response(content="Run started — watching it."),
     ])
     lines = engine.submit(f"optimize the prefix sums in {PROBLEM_DIR}")
-    assert any(line.startswith("starting run from") for line in lines)
+    progress = engine.poll_events()  # tool activity streams live now
+    assert any(line.startswith("→ start_run(") for line in progress)
+    assert any("starting run from" in line for line in progress)
     assert any("Run started" in line for line in lines)
     finished = _drain(engine)
     assert any("run finished [done]" in line for line in finished)

@@ -114,12 +114,12 @@ class OperatorChat:
             self.messages = [self.messages[0]] + self.messages[-(MAX_MESSAGES - 1):]
 
     def turn(self, text: str) -> list[str]:
-        """One user turn; returns transcript lines (tool activity + reply)."""
+        """One user turn; activity streams live via engine.emit_progress, reply returned."""
         self.messages.append({"role": "user", "content": text})
-        lines: list[str] = []
         limit = self._context_limit()
         for _ in range(MAX_TOOL_ROUNDS):
             self._trim()
+            self.engine.busy_note = f"thinking via {self.model}"
             result = chat(self.model, self.messages, budget=self.budget, role="operator",
                           tools=TOOLS, completion_fn=self.completion_fn)
             self.engine.record_operator_usage(result, limit)
@@ -129,8 +129,7 @@ class OperatorChat:
             if not tool_calls:
                 reply = result.text.strip() or "(no reply)"
                 self.messages.append({"role": "assistant", "content": reply})
-                lines.append(reply)
-                return lines
+                return [reply]
             self.messages.append({"role": "assistant", "content": result.text or None,
                                   "tool_calls": [
                                       {"id": tc.id, "type": "function",
@@ -142,15 +141,26 @@ class OperatorChat:
                     args = json.loads(tc.function.arguments or "{}")
                 except json.JSONDecodeError:
                     args = {}
+                self.engine.busy_note = f"running {tc.function.name}"
+                self.engine.emit_progress(_progress_line(tc.function.name, args))
                 output, shown = self._dispatch(tc.function.name, args)
-                lines.extend(shown)
+                for line in shown:
+                    self.engine.emit_progress(f"  {line}")
                 self.messages.append({"role": "tool", "tool_call_id": tc.id,
                                       "content": output})
-        lines.append("(operator hit the tool-call cap for one turn — ask again)")
-        return lines
+        return ["(operator hit the tool-call cap for one turn — ask again)"]
 
     def _dispatch(self, name: str, args: dict) -> tuple[str, list[str]]:
         return dispatch_tool(self.engine, name, args)
+
+
+def _progress_line(name: str, args: dict) -> str:
+    """One dim transcript line describing a tool call as it starts."""
+    shown_args = ", ".join(
+        f"{v}" if isinstance(v, (int, float)) else str(v)
+        for v in list(args.values())[:2]
+    )
+    return f"→ {name}({shown_args[:80]})" if shown_args else f"→ {name}()"
 
 
 def dispatch_tool(engine: "SessionEngine", name: str, args: dict) -> tuple[str, list[str]]:
@@ -270,6 +280,7 @@ class CliOperatorChat:
     def turn(self, text: str) -> list[str]:
         """One user turn: at most one action plus one follow-up reply."""
         self.history.append(("user", text))
+        self.engine.busy_note = f"thinking via {self.cli} CLI"
         raw = self.runner(self._prompt(text))
         action = _extract_json(raw)
         if action is None or action.get("action") in (None, "reply"):
@@ -277,8 +288,13 @@ class CliOperatorChat:
             self.history.append(("chi", reply))
             return [reply]
         name = str(action.pop("action"))
+        self.engine.busy_note = f"running {name}"
+        self.engine.emit_progress(_progress_line(name, action))
         output, shown = dispatch_tool(self.engine, name, action)
+        for line in shown:
+            self.engine.emit_progress(f"  {line}")
         self.history.append(("chi", f"[{name}] {output[:200]}"))
+        self.engine.busy_note = f"composing reply via {self.cli} CLI"
         followup_raw = self.runner(
             self._prompt(text, extra=f"chi executed {name}; result: {output[:500]}\n"
                                      "Now respond to the user with a reply action.")
@@ -286,7 +302,7 @@ class CliOperatorChat:
         followup = _extract_json(followup_raw)
         reply = (followup or {}).get("text") or followup_raw or "(done)"
         self.history.append(("chi", reply))
-        return shown + [reply]
+        return [reply]
 
 
 def fleet_summary_text() -> str:

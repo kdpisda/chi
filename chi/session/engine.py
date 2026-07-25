@@ -6,6 +6,7 @@ conversational LLM operator layer (next iteration).
 """
 
 import json
+import threading
 from pathlib import Path
 from typing import Callable
 
@@ -37,6 +38,8 @@ class SessionEngine:
         self.completion_fn: Callable | None = None  # test seam for the operator LLM
         self.cli_runner_fn: Callable | None = None  # test seam for the CLI operator
         self.busy_note: str | None = None  # what a long operation is doing (frontends show it)
+        self._progress: list[str] = []  # live activity lines, drained by poll_events
+        self._progress_lock = threading.Lock()
         self._operator_chat = None
         self.quit_requested = False
         self._quit_after_stop = False
@@ -107,18 +110,28 @@ class SessionEngine:
             "context_pct": self._context_pct,
         }
 
+    def emit_progress(self, line: str) -> None:
+        """Push one live activity line (thread-safe; frontends drain via poll_events)."""
+        with self._progress_lock:
+            self._progress.append(line)
+
+    def _drain_progress(self) -> list[str]:
+        with self._progress_lock:
+            drained, self._progress = self._progress, []
+        return drained
+
     def poll_events(self) -> list[str]:
-        """New formatted run events since the last poll (empty when idle)."""
+        """New activity + formatted run events since the last poll."""
+        lines: list[str] = self._drain_progress()
         if self._handle is None:
-            return []
-        lines: list[str] = []
+            return lines
         if self._handle.error is not None:
             lines.append(f"error: run failed: {self._handle.error}")
             self._handle = None
             return lines
         if self._reader is None:
             if not self._handle.ready.is_set() or self._handle.run_dir is None:
-                return []
+                return lines  # keep already-drained progress lines
             self._reader = Store.open(self._handle.run_dir)
             self._last_run_dir = self._handle.run_dir
             lines.append(f"run {self._handle.run_id} started → {self._handle.run_dir}")

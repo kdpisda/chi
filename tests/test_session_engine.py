@@ -133,3 +133,11 @@ def test_run_missing_fleet_file(tmp_path: Path) -> None:
     engine = SessionEngine(runs_root=tmp_path / "runs")
     out = engine.submit(f"/run {tmp_path}/nope.yaml")
     assert out[0].startswith("error:") and "not found" in out[0]
+
+
+def test_progress_stream_drains_without_active_run(tmp_path: Path) -> None:
+    engine = SessionEngine(runs_root=tmp_path / "runs")
+    engine.emit_progress("→ query_ledger(precision)")
+    engine.emit_progress("  found 2 entries")
+    assert engine.poll_events() == ["→ query_ledger(precision)", "  found 2 entries"]
+    assert engine.poll_events() == []

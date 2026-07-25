@@ -354,6 +354,8 @@ class ChiApp(App):
     # -- transcript ---------------------------------------------------------
 
     def _style_for(self, line: str) -> str | None:
+        if line.startswith("→") or line.startswith("  "):
+            return "dim cyan"
         if line.startswith(("error:", "⚠")):
             return "yellow" if line.startswith("⚠") else "red"
         if "★ new best" in line:

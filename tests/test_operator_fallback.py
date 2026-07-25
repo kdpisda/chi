@@ -59,7 +59,9 @@ def test_cli_operator_start_run_action(tmp_path: Path) -> None:
 
     chat = CliOperatorChat(engine, "claude", runner=runner)
     lines = chat.turn(f"participate with {PROBLEM_DIR}")
-    assert any(line.startswith("starting run from") for line in lines)
+    progress = engine.poll_events()
+    assert any(line.startswith("→ start_run(") for line in progress)
+    assert any("starting run from" in line for line in progress)
     assert lines[-1] == "Run is going."
     deadline = time.time() + 60
     while time.time() < deadline:
