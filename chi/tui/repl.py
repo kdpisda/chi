@@ -33,10 +33,14 @@ def run_repl(
     if prompt_fn is None:
         from prompt_toolkit import PromptSession
         from prompt_toolkit.completion import WordCompleter
+        from prompt_toolkit.history import FileHistory
         from prompt_toolkit.patch_stdout import patch_stdout
 
+        from chi.userconfig import history_path
+
         session: "PromptSession[str]" = PromptSession(
-            completer=WordCompleter(sorted(engine.commands), sentence=True)
+            completer=WordCompleter(sorted(engine.commands), sentence=True),
+            history=FileHistory(str(history_path())),
         )
 
         def _default_prompt() -> str:

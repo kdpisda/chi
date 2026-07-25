@@ -79,6 +79,13 @@ def start_run(
     )
     if on_run_created is not None:
         on_run_created(run_id, run_dir)
+    from chi.userconfig import record_session
+
+    record_session({
+        "run_id": run_id, "run_dir": str(run_dir.resolve()), "status": "running",
+        "run_name": fleet.run_name, "problem": str(fleet.problem),
+        "cwd": str(Path.cwd()), "started_at": utcnow(),
+    })
     workdir = run_dir / "workdir"
     shutil.copytree(fleet.problem, workdir)
     problem = load_problem(workdir)
@@ -154,6 +161,11 @@ def start_run(
     events.append_event(store, run_id, events.STOP, payload={"status": status})
     store.execute("UPDATE runs SET ended_at=?, status=? WHERE run_id=?",
                   (utcnow(), status, run_id))
+    record_session({
+        "run_id": run_id, "run_dir": str(run_dir.resolve()), "status": status,
+        "ended_at": utcnow(), "baseline_score": baseline_score,
+        "champion_score": None if champ is None else champ["score_value"],
+    })
     return RunSummary(
         run_id=run_id, run_dir=run_dir, iterations=iterations_done,
         baseline_score=baseline_score,

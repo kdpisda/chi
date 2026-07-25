@@ -1,5 +1,7 @@
-"""Global user configuration: enabled providers, default coders, credentials."""
+"""Global user configuration: enabled providers, default coders, credentials,
+plus chi's system-wide data home (runs, session registry, input history)."""
 
+import json
 import os
 from pathlib import Path
 
@@ -14,6 +16,71 @@ def config_dir() -> Path:
     root = Path(os.environ.get("CHI_CONFIG_DIR", "~/.config/chi")).expanduser()
     root.mkdir(parents=True, exist_ok=True)
     return root
+
+
+def data_dir() -> Path:
+    """Chi's global data directory ($CHI_DATA_DIR override, else ~/.local/share/chi)."""
+    root = Path(os.environ.get("CHI_DATA_DIR", "~/.local/share/chi")).expanduser()
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def default_runs_root() -> Path:
+    """System-wide runs directory — history is global, not per-project."""
+    return data_dir() / "runs"
+
+
+def record_session(record: dict) -> None:
+    """Append one session record to the global registry (best-effort)."""
+    try:
+        with open(data_dir() / "sessions.jsonl", "a") as f:
+            f.write(json.dumps(record, sort_keys=True) + "\n")
+    except OSError:
+        pass  # a registry hiccup must never kill a run
+
+
+def list_sessions() -> list[dict]:
+    """All known sessions, newest first; the last record per run_id wins."""
+    path = data_dir() / "sessions.jsonl"
+    if not path.exists():
+        return []
+    by_id: dict[str, dict] = {}
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        run_id = record.get("run_id")
+        if run_id:
+            by_id[run_id] = {**by_id.get(run_id, {}), **record}
+    return sorted(by_id.values(), key=lambda r: r.get("started_at", ""), reverse=True)
+
+
+def history_path() -> Path:
+    """Global prompt-history file shared by every chi session."""
+    return data_dir() / "input_history"
+
+
+def load_history(limit: int = 500) -> list[str]:
+    """Recent prompt history, oldest first."""
+    path = history_path()
+    if not path.exists():
+        return []
+    return path.read_text().splitlines()[-limit:]
+
+
+def append_history(text: str) -> None:
+    """Append one submitted line to the global prompt history (best-effort)."""
+    if not text.strip():
+        return
+    try:
+        with open(history_path(), "a") as f:
+            f.write(text + "\n")
+    except OSError:
+        pass
 
 
 class UserConfig(BaseModel):

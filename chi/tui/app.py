@@ -5,14 +5,15 @@ the transcript, streams live run events, and supplies modal pickers.
 """
 
 import threading
+from pathlib import Path
 
 from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Input, OptionList, RichLog, SelectionList, Static
+from textual.widgets import Input, OptionList, RichLog, Rule, SelectionList, Static
 from textual.widgets.option_list import Option
 from textual.widgets.selection_list import Selection
 from textual_autocomplete import AutoComplete, DropdownItem
@@ -20,7 +21,46 @@ from textual_autocomplete import AutoComplete, DropdownItem
 from chi import __version__
 from chi.session.engine import SessionEngine
 
-BANNER = f"chi (χ) {__version__} — /help for commands · plain text steers the active run"
+# a pixel-block χ, in the spirit of vendor-CLI marks
+LOGO = "▚▄ ▄▞\n ▄█▄\n▞▀ ▀█▄"
+
+
+class PromptInput(Input):
+    """Input with persistent, system-wide up/down history."""
+
+    BINDINGS = [
+        Binding("up", "hist_prev", show=False),
+        Binding("down", "hist_next", show=False),
+    ]
+
+    def on_mount(self) -> None:
+        from chi.userconfig import load_history
+
+        self._hist: list[str] = load_history()
+        self._idx = len(self._hist)
+
+    def remember(self, text: str) -> None:
+        """Persist one submitted line to the global history."""
+        from chi.userconfig import append_history
+
+        append_history(text)
+        self._hist.append(text)
+        self._idx = len(self._hist)
+
+    def action_hist_prev(self) -> None:
+        if self._idx > 0:
+            self._idx -= 1
+            self.value = self._hist[self._idx]
+            self.cursor_position = len(self.value)
+
+    def action_hist_next(self) -> None:
+        if self._idx < len(self._hist) - 1:
+            self._idx += 1
+            self.value = self._hist[self._idx]
+        else:
+            self._idx = len(self._hist)
+            self.value = ""
+        self.cursor_position = len(self.value)
 
 
 class PickScreen(ModalScreen[list]):
@@ -109,10 +149,16 @@ class ChiApp(App):
 
     TITLE = "chi (χ)"
     CSS = """
-    #banner { height: 1; padding: 0 1; color: $accent; text-style: bold; }
-    #transcript { height: 1fr; border: round $primary 30%; padding: 0 1; }
-    #status { height: 1; padding: 0 1; color: $text-muted; }
-    #prompt { border: round $accent; }
+    #header-row { height: auto; padding: 1 1 0 2; }
+    #logo { width: auto; color: $accent; text-style: bold; margin-right: 2; }
+    #header-text { width: 1fr; }
+    #transcript { height: 1fr; padding: 1 2 0 2; border: none;
+                  background: transparent; scrollbar-size-vertical: 1; }
+    #prompt-rule { margin: 0 1; color: $foreground 20%; }
+    #prompt-row { height: 1; padding: 0 1; }
+    #prompt-prefix { width: 2; color: $accent; text-style: bold; }
+    #prompt { border: none; height: 1; padding: 0; background: transparent; width: 1fr; }
+    #status { height: 1; padding: 0 2; color: $text-muted; }
     PickScreen { align: center middle; }
     #dialog { width: 80%; height: 70%; border: round $accent; background: $surface;
               padding: 1; }
@@ -129,11 +175,16 @@ class ChiApp(App):
         self.transcript_lines: list[str] = []  # plain mirror, used by tests
 
     def compose(self) -> ComposeResult:
-        yield Static(BANNER, id="banner")
+        with Horizontal(id="header-row"):
+            yield Static(LOGO, id="logo")
+            yield Static("", id="header-text")
         yield RichLog(id="transcript", wrap=True)
-        yield Static("idle", id="status")
-        prompt = Input(placeholder="/help for commands — type to chi", id="prompt")
-        yield prompt
+        yield Rule(id="prompt-rule")
+        with Horizontal(id="prompt-row"):
+            yield Static("›", id="prompt-prefix")
+            prompt = PromptInput(placeholder="/help for commands — plain text steers", id="prompt")
+            yield prompt
+        yield Static("", id="status")
         yield AutoComplete(target=prompt, candidates=self._candidates)
 
     def _candidates(self, state) -> list[DropdownItem]:
@@ -143,8 +194,27 @@ class ChiApp(App):
         return [DropdownItem(name) for name in sorted(self.engine.commands)]
 
     def on_mount(self) -> None:
+        self._refresh_header()
         self.set_interval(0.5, self._pump)
         self.query_one("#prompt", Input).focus()
+
+    def _refresh_header(self) -> None:
+        from chi.userconfig import load_user_config
+
+        coders = load_user_config().default_coders
+        if coders:
+            models = ", ".join(c.model for c in coders[:3])
+            if len(coders) > 3:
+                models += f" +{len(coders) - 3}"
+            coders_line = f"{len(coders)} coder(s): {models} · /models"
+        else:
+            coders_line = "no default coders — /models to pick"
+        text = Text()
+        text.append("chi (χ) ", style="bold")
+        text.append(f"v{__version__}\n", style="dim")
+        text.append(coders_line + "\n", style="dim")
+        text.append(f"{Path.cwd()} · runs {self.engine.runs_root}", style="dim")
+        self.query_one("#header-text", Static).update(text)
 
     # -- transcript ---------------------------------------------------------
 
@@ -153,7 +223,7 @@ class ChiApp(App):
             return "yellow" if line.startswith("⚠") else "red"
         if "★ new best" in line:
             return "green bold"
-        if line.startswith(("run finished", "run ", "starting run")):
+        if line.startswith(("run finished", "run ", "starting run", "resumed ")):
             return "cyan"
         if line.startswith("❯"):
             return "dim"
@@ -168,6 +238,7 @@ class ChiApp(App):
     def _write_lines(self, lines: list[str]) -> None:
         for line in lines:
             self._write(line)
+        self._refresh_header()
 
     # -- input --------------------------------------------------------------
 
@@ -178,6 +249,8 @@ class ChiApp(App):
         event.input.value = ""
         if not text:
             return
+        if isinstance(event.input, PromptInput):
+            event.input.remember(text)
         self._write(f"❯ {text}")
         self._submit(text)
 
@@ -196,9 +269,10 @@ class ChiApp(App):
         snap = self.engine.snapshot()
         if snap["active"]:
             best = snap["best"] if snap["best"] is not None else "—"
-            status = f"● running {snap['run_id'] or '(starting)'} · best {best}"
+            status = (f"● running {snap['run_id'] or '(starting)'} · best {best}"
+                      " · /stop to interrupt · plain text steers")
         else:
-            status = "idle"
+            status = "▸ idle · /run start · /resume sessions · /help commands · exit quits"
         self.query_one("#status", Static).update(status)
 
     # -- picker bridge (called from the submit worker thread) ---------------

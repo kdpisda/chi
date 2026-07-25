@@ -343,15 +343,17 @@ def task_release(
 @app.command()
 def run(
     fleet_path: Path = typer.Argument(..., help="Path to fleet.yaml"),
-    runs_root: Path = typer.Option(Path("runs"), "--runs-root"),
+    runs_root: Path | None = typer.Option(None, "--runs-root",
+                                          help="Default: the system-wide chi data dir"),
 ) -> None:
     """Start a run and print the summary as JSON."""
     from dataclasses import asdict
 
     from chi.orchestrator.loop import start_run
+    from chi.userconfig import default_runs_root
 
     load_env()
-    summary = start_run(load_fleet(fleet_path), runs_root=runs_root)
+    summary = start_run(load_fleet(fleet_path), runs_root=runs_root or default_runs_root())
     out = asdict(summary)
     out["run_dir"] = str(out["run_dir"])
     typer.echo(json.dumps(out, indent=2))

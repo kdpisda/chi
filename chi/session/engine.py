@@ -17,8 +17,10 @@ from chi.store.db import Store, utcnow
 class SessionEngine:
     """Session state + command dispatch, independent of any terminal UI."""
 
-    def __init__(self, runs_root: Path = Path("runs"), picker_fn: Callable | None = None) -> None:
-        self.runs_root = Path(runs_root)
+    def __init__(self, runs_root: Path | None = None, picker_fn: Callable | None = None) -> None:
+        from chi.userconfig import default_runs_root
+
+        self.runs_root = Path(runs_root) if runs_root is not None else default_runs_root()
         self.picker_fn = picker_fn
         self.quit_requested = False
         self._handle: RunHandle | None = None
@@ -40,6 +42,7 @@ class SessionEngine:
             "/champion": self._cmd_champion,
             "/quit": self._cmd_quit,
             "/exit": self._cmd_quit,
+            "/resume": self._cmd_resume,
         }
 
     # -- public interface ------------------------------------------------
@@ -161,6 +164,7 @@ class SessionEngine:
             "/stop               stop the active run at the next iteration",
             "/ledger [negative]  show experiments or dead-ends",
             "/champion           show the best candidate",
+            "/resume [run_id]    attach to any past session, from any directory",
             "/quit               leave the session (also: exit, quit, /exit)",
             "",
             "Plain text while a run is active becomes a steering directive.",
@@ -257,7 +261,63 @@ class SessionEngine:
     def _cmd_steer(self, args: str) -> list[str]:
         if not args.strip():
             return ["usage: /steer <directive>"]
-        return self._free_text(args.strip())
+        if self.has_active_run():
+            return self._free_text(args.strip())
+        if self._last_run_dir is not None:
+            self._append_steering(self._last_run_dir, args.strip())
+            return [f"directive written to {self._last_run_dir.name}/steering.md —"
+                    " a live session on that run picks it up at its next iteration"]
+        return ["no run to steer — /run or /resume first"]
+
+    def _cmd_resume(self, args: str) -> list[str]:
+        from chi.tui.picker import PickerUnavailable, fuzzy_select
+        from chi.userconfig import list_sessions
+
+        sessions = list_sessions()
+        if not sessions:
+            return ["no sessions recorded yet — /run to create one"]
+        if args.strip():
+            matches = [s for s in sessions if s["run_id"] == args.strip()]
+            if not matches:
+                return [f"error: unknown session '{args.strip()}' — /resume to list"]
+            chosen = matches[0]
+        else:
+            choices = [(s["run_id"], self._session_label(s)) for s in sessions]
+            try:
+                picked = fuzzy_select("Resume a session:", choices, multi=False,
+                                      picker_fn=self.picker_fn)
+            except PickerUnavailable:
+                return [self._session_label(s) for s in sessions] + [
+                    "(use /resume <run_id>)"
+                ]
+            if not picked:
+                return ["nothing selected"]
+            chosen = next(s for s in sessions if s["run_id"] == picked[0])
+        run_dir = Path(chosen["run_dir"])
+        if not run_dir.exists():
+            return [f"error: run directory missing: {run_dir}"]
+        self._last_run_dir = run_dir
+        try:
+            from chi.config import load_problem
+
+            self._direction = load_problem(run_dir / "workdir").score.direction
+        except (FileNotFoundError, ValueError):
+            self._direction = "minimize"
+        lines = [
+            f"resumed {chosen['run_id']} [{chosen.get('status', '?')}]"
+            f" — started {chosen.get('started_at', '?')[:19]} in {chosen.get('cwd', '?')}",
+        ]
+        lines.extend(self._cmd_champion(""))
+        lines.append("(/status /ledger /champion inspect it; /steer still reaches it)")
+        return lines
+
+    @staticmethod
+    def _session_label(s: dict) -> str:
+        problem = Path(s.get("problem", "?")).name
+        champ = s.get("champion_score")
+        champ_txt = "—" if champ is None else f"{champ:.4g}"
+        return (f"{s['run_id']}  [{s.get('status', '?')}]  {problem}"
+                f"  champ={champ_txt}  {s.get('started_at', '')[:16]}")
 
     def _cmd_stop(self, args: str) -> list[str]:
         if not self.has_active_run() or self._handle is None:
@@ -301,14 +361,18 @@ class SessionEngine:
 
     def _free_text(self, text: str) -> list[str]:
         if self.has_active_run() and self._handle is not None and self._handle.run_dir:
-            steering_path = self._handle.run_dir / "steering.md"
-            existing = steering_path.read_text() if steering_path.exists() else ""
-            steering_path.write_text(existing + f"\n## §op {utcnow()}\n{text}\n")
+            self._append_steering(self._handle.run_dir, text)
             return ["steering directive queued for the next iteration"]
         return [
-            "no active run — /run to start one, /help for commands",
+            "no active run — /run to start one, /resume to pick up a past session",
             "(conversational mode is coming in the next iteration of chi)",
         ]
+
+    @staticmethod
+    def _append_steering(run_dir: Path, text: str) -> None:
+        steering_path = run_dir / "steering.md"
+        existing = steering_path.read_text() if steering_path.exists() else ""
+        steering_path.write_text(existing + f"\n## §op {utcnow()}\n{text}\n")
 
     def _active_or_last_run_dir(self) -> Path | None:
         if self._handle is not None and self._handle.run_dir is not None:
