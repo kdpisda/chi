@@ -123,7 +123,9 @@ async def test_working_indicator_while_operator_thinks(tmp_path: Path) -> None:
 
 
 async def test_escape_returns_focus_to_prompt(tmp_path: Path) -> None:
-    from textual.widgets import Input, RichLog
+    from textual.widgets import RichLog
+
+    from chi.tui.app import PromptArea
 
     app = _app(tmp_path)
     async with app.run_test() as pilot:
@@ -131,7 +133,57 @@ async def test_escape_returns_focus_to_prompt(tmp_path: Path) -> None:
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
-        assert app.focused is app.query_one("#prompt", Input)
+        assert app.focused is app.query_one("#prompt", PromptArea)
+
+
+async def test_multiline_paste_and_submit(tmp_path: Path) -> None:
+    from textual.events import Paste
+
+    from chi.tui.app import PromptArea
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        prompt = app.query_one("#prompt", PromptArea)
+        # real terminal paste is delivered app-level and routed to the focused widget
+        app.post_message(Paste("line one\nline two\nline three"))
+        await pilot.pause()
+        assert prompt.document.line_count == 3  # newlines preserved, not flattened
+        await pilot.press("enter")
+        await pilot.pause()
+        # echoed into the transcript as one multi-line entry
+        assert any(line == "❯ line one" for line in app.transcript_lines)
+        assert any(line == "  line three" for line in app.transcript_lines)
+
+
+async def test_ctrl_j_and_backslash_add_newlines(tmp_path: Path) -> None:
+    from chi.tui.app import PromptArea
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        prompt = app.query_one("#prompt", PromptArea)
+        for ch in "abc":
+            await pilot.press(ch)
+        await pilot.press("ctrl+j")
+        for ch in "def":
+            await pilot.press(ch)
+        assert prompt.text == "abc\ndef"
+        # trailing backslash + enter continues the draft instead of submitting
+        await pilot.press("backslash", "enter")
+        await pilot.pause()
+        assert prompt.text == "abc\ndef\n"
+        assert not any(line.startswith("❯") for line in app.transcript_lines)
+
+
+async def test_tab_completes_slash_commands(tmp_path: Path) -> None:
+    from chi.tui.app import PromptArea
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        prompt = app.query_one("#prompt", PromptArea)
+        for ch in "/cha":
+            await pilot.press(ch)
+        await pilot.press("tab")
+        assert prompt.text == "/champion"
 
 
 async def test_pick_screen_arrows_work_from_filter(tmp_path: Path) -> None:

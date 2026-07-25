@@ -14,11 +14,13 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.message import Message
 from textual.screen import ModalScreen
-from textual.widgets import Input, OptionList, RichLog, Rule, SelectionList, Static
+from textual.widgets import (
+    Input, OptionList, RichLog, Rule, SelectionList, Static, TextArea,
+)
 from textual.widgets.option_list import Option
 from textual.widgets.selection_list import Selection
-from textual_autocomplete import AutoComplete, DropdownItem
 
 from chi import __version__
 from chi.session.engine import SessionEngine
@@ -27,42 +29,112 @@ from chi.session.engine import SessionEngine
 LOGO = "▚▄ ▄▞\n ▄█▄\n▞▀ ▀█▄"
 
 
-class PromptInput(Input):
-    """Input with persistent, system-wide up/down history."""
+class PromptArea(TextArea):
+    """Multiline prompt: Enter submits; Shift+Enter / Ctrl+J / trailing-\\ add lines.
+
+    Multiline paste is native (bracketed paste). Up/down navigate the global
+    history while the draft is a single line; in a multiline draft they move
+    the cursor. Tab completes slash commands.
+    """
+
+    MAX_ROWS = 6
 
     BINDINGS = [
+        Binding("enter", "submit", show=False, priority=True),
+        Binding("shift+enter", "newline", show=False, priority=True),
+        Binding("ctrl+j", "newline", show=False, priority=True),
         Binding("up", "hist_prev", show=False),
         Binding("down", "hist_next", show=False),
+        Binding("tab", "complete", show=False, priority=True),
     ]
+
+    class Submitted(Message):
+        def __init__(self, area: "PromptArea", value: str) -> None:
+            super().__init__()
+            self.area = area
+            self.value = value
 
     def on_mount(self) -> None:
         from chi.userconfig import load_history
 
+        self.show_line_numbers = False
         self._hist: list[str] = load_history()
         self._idx = len(self._hist)
+        self._completions: list[str] = []
+        self._completion_idx = 0
+
+    # -- submission ----------------------------------------------------------
+
+    def action_submit(self) -> None:
+        text = self.text
+        if text.rstrip("\n ").endswith("\\"):
+            # universal fallback for terminals that can't report shift+enter:
+            # a trailing backslash turns Enter into a newline
+            stripped = text.rstrip("\n ")
+            self.text = stripped[:-1] + "\n"
+            self.move_cursor(self.document.end)
+            return
+        self.post_message(self.Submitted(self, text))
+
+    def action_newline(self) -> None:
+        self.insert("\n")
+
+    # -- history (single-line drafts only; multiline keeps cursor movement) --
+
+    def _set_draft(self, value: str) -> None:
+        self.text = value
+        self.move_cursor(self.document.end)
+
+    def action_hist_prev(self) -> None:
+        if "\n" in self.text:
+            self.move_cursor_relative(rows=-1)
+            return
+        if self._idx > 0:
+            self._idx -= 1
+            self._set_draft(self._hist[self._idx])
+
+    def action_hist_next(self) -> None:
+        if "\n" in self.text:
+            self.move_cursor_relative(rows=1)
+            return
+        if self._idx < len(self._hist) - 1:
+            self._idx += 1
+            self._set_draft(self._hist[self._idx])
+        else:
+            self._idx = len(self._hist)
+            self._set_draft("")
 
     def remember(self, text: str) -> None:
-        """Persist one submitted line to the global history."""
+        """Persist one submitted entry to the global history."""
         from chi.userconfig import append_history
 
-        append_history(text)
+        append_history(text.replace("\n", " ⏎ "))
         self._hist.append(text)
         self._idx = len(self._hist)
 
-    def action_hist_prev(self) -> None:
-        if self._idx > 0:
-            self._idx -= 1
-            self.value = self._hist[self._idx]
-            self.cursor_position = len(self.value)
+    # -- slash completion ------------------------------------------------------
 
-    def action_hist_next(self) -> None:
-        if self._idx < len(self._hist) - 1:
-            self._idx += 1
-            self.value = self._hist[self._idx]
+    def command_names(self) -> list[str]:
+        app = self.app
+        if isinstance(app, ChiApp):
+            return sorted(app.engine.commands)
+        return []
+
+    def action_complete(self) -> None:
+        text = self.text
+        if "\n" in text or not text.startswith("/") or " " in text:
+            self.insert("    ")
+            return
+        matches = [c for c in self.command_names() if c.startswith(text)] or [
+            c for c in self.command_names() if text[1:] in c
+        ]
+        if not matches:
+            return
+        if text in matches:  # already complete: cycle to the next match
+            self._completion_idx = (matches.index(text) + 1) % len(matches)
         else:
-            self._idx = len(self._hist)
-            self.value = ""
-        self.cursor_position = len(self.value)
+            self._completion_idx = 0
+        self._set_draft(matches[self._completion_idx])
 
 
 class QuestionScreen(ModalScreen[str | None]):
@@ -249,9 +321,12 @@ class ChiApp(App):
                   background: transparent; scrollbar-size-vertical: 1; }
     #activity { height: 1; padding: 0 2; color: $accent; display: none; }
     #prompt-rule { margin: 0 1; color: $foreground 20%; }
-    #prompt-row { height: 1; padding: 0 1; }
+    #hint { height: 1; padding: 0 2; color: $text-muted; display: none; }
+    #prompt-row { height: auto; padding: 0 1; }
     #prompt-prefix { width: 2; color: $accent; text-style: bold; }
-    #prompt { border: none; height: 1; padding: 0; background: transparent; width: 1fr; }
+    #prompt { border: none; height: auto; max-height: 8; padding: 0;
+              background: transparent; width: 1fr; }
+    #prompt .text-area--cursor-line { background: transparent; }
     #status { height: 1; padding: 0 2; color: $text-muted; }
     PickScreen { align: center middle; }
     #dialog { width: 80%; height: 70%; border: round $accent; background: $surface;
@@ -297,24 +372,16 @@ class ChiApp(App):
         yield RichLog(id="transcript", wrap=True)
         yield Static("", id="activity")
         yield Rule(id="prompt-rule")
+        yield Static("", id="hint")
         with Horizontal(id="prompt-row"):
             yield Static("›", id="prompt-prefix")
-            prompt = PromptInput(placeholder="tell chi what to optimize — /help for commands",
-                                 id="prompt")
-            yield prompt
+            yield PromptArea(id="prompt")
         yield Static("", id="status")
-        yield AutoComplete(target=prompt, candidates=self._candidates)
-
-    def _candidates(self, state) -> list[DropdownItem]:
-        text = state.text
-        if not text.startswith("/") or " " in text:
-            return []
-        return [DropdownItem(name) for name in sorted(self.engine.commands)]
 
     def on_mount(self) -> None:
         self._refresh_header()
         self.set_interval(0.5, self._pump)
-        self.query_one("#prompt", Input).focus()
+        self.query_one("#prompt", PromptArea).focus()
         if self._offer_setup:
             self._first_run_setup()
 
@@ -326,7 +393,7 @@ class ChiApp(App):
 
     def action_focus_prompt(self) -> None:
         """Escape always returns the keyboard to the prompt."""
-        self.query_one("#prompt", Input).focus()
+        self.query_one("#prompt", PromptArea).focus()
 
     def action_scroll_transcript(self, direction: int) -> None:
         transcript = self.query_one("#transcript", RichLog)
@@ -381,20 +448,31 @@ class ChiApp(App):
 
     # -- input --------------------------------------------------------------
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        if event.input.id != "prompt":
-            return
+    def on_prompt_area_submitted(self, event: PromptArea.Submitted) -> None:
         text = event.value.strip()
-        event.input.value = ""
+        event.area.text = ""
         if not text:
             return
-        if isinstance(event.input, PromptInput):
-            event.input.remember(text)
-        self._write(f"❯ {text}")
+        event.area.remember(text)
+        for n, line in enumerate(text.splitlines()):
+            self._write(f"❯ {line}" if n == 0 else f"  {line}")
         self._busy_count += 1
         if self._busy_since is None:
             self._busy_since = time.monotonic()
         self._submit(text)
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        if event.text_area.id != "prompt":
+            return
+        hint = self.query_one("#hint", Static)
+        text = event.text_area.text
+        if text.startswith("/") and "\n" not in text and " " not in text:
+            matches = [c for c in sorted(self.engine.commands) if c.startswith(text)]
+            if matches and matches != [text]:
+                hint.update("tab: " + "  ".join(matches[:8]))
+                hint.display = True
+                return
+        hint.display = False
 
     def _submit_done(self, lines: list[str]) -> None:
         self._busy_count = max(0, self._busy_count - 1)
