@@ -50,7 +50,7 @@ def credentials_path() -> Path:
 
 
 def set_credential(env_var: str, value: str) -> Path:
-    """Upsert VAR=value into credentials.env (created chmod 600)."""
+    """Upsert VAR=value into credentials.env (file is created 0600, never wider)."""
     path = credentials_path()
     lines: list[str] = []
     if path.exists():
@@ -59,7 +59,11 @@ def set_credential(env_var: str, value: str) -> Path:
             if line.strip() and not line.startswith(f"{env_var}=")
         ]
     lines.append(f"{env_var}={value}")
-    path.write_text("\n".join(lines) + "\n")
+    # O_CREAT with mode 0600 so the secret is never on disk world-readable,
+    # even briefly; chmod afterwards repairs pre-existing wider files.
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write("\n".join(lines) + "\n")
     path.chmod(0o600)
     return path
 
