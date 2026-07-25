@@ -84,6 +84,38 @@ async def test_run_streams_into_transcript_and_status(tmp_path: Path) -> None:
         assert any("★ new best" in line for line in app.transcript_lines)
 
 
+async def test_working_indicator_while_operator_thinks(tmp_path: Path) -> None:
+    import time as _time
+    from types import SimpleNamespace
+
+    from chi.config import CoderCfg
+    from chi.userconfig import UserConfig, save_user_config
+
+    save_user_config(UserConfig(role_models={"orchestrator": "test/m"}))
+
+    def slow_completion(model, messages, **kwargs):
+        _time.sleep(1.2)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="done",
+                                                              tool_calls=None))],
+            usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1),
+            _hidden_params={"response_cost": 0.0},
+        )
+
+    app = _app(tmp_path)
+    app.engine.completion_fn = slow_completion
+    async with app.run_test() as pilot:
+        for ch in "hi":
+            await pilot.press(ch)
+        await pilot.press("enter")
+        await asyncio.sleep(0.5)
+        await pilot.pause()
+        assert app._busy_count == 1  # spinner active while the operator thinks
+        await _wait_for(app, "done", timeout_s=15.0)
+        await pilot.pause()
+        assert app._busy_count == 0
+
+
 async def test_escape_returns_focus_to_prompt(tmp_path: Path) -> None:
     from textual.widgets import Input, RichLog
 

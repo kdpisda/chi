@@ -97,6 +97,8 @@ def run_repl(
                             break
                     else:
                         break
+                if text.strip() and not text.strip().startswith("/"):
+                    print("… chi is working")
                 for line in engine.submit(text):
                     print(line)
     finally:

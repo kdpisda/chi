@@ -36,6 +36,7 @@ class SessionEngine:
         self.secret_fn: Callable | None = None  # frontends: (prompt) -> secret|None
         self.completion_fn: Callable | None = None  # test seam for the operator LLM
         self.cli_runner_fn: Callable | None = None  # test seam for the CLI operator
+        self.busy_note: str | None = None  # what a long operation is doing (frontends show it)
         self._operator_chat = None
         self.quit_requested = False
         self._quit_after_stop = False
@@ -684,6 +685,7 @@ class SessionEngine:
             return ["the conversational operator needs an API model or a vendor CLI —"
                     " /setkey <provider>, or set operator_cli: claude in"
                     " ~/.config/chi/config.yaml"]
+        self.busy_note = f"thinking via {operator.model}"
         try:
             return operator.turn(text)
         except BudgetExceededError as exc:
@@ -693,6 +695,8 @@ class SessionEngine:
             self._operator_chat = None
             return self._offer_operator_fallback(
                 f"The operator model failed: {_short_error(exc)}", text)
+        finally:
+            self.busy_note = None
 
     @staticmethod
     def _append_steering(run_dir: Path, text: str) -> None:

@@ -112,6 +112,21 @@ def test_launch_problem_rejects_non_problem_dir(tmp_path: Path) -> None:
     assert lines[0].startswith("error:") and "problem.yaml" in lines[0]
 
 
+def test_busy_note_set_during_operator_turn(tmp_path: Path) -> None:
+    _configure_defaults(tmp_path)
+    engine = SessionEngine(runs_root=tmp_path / "runs")
+    seen: dict = {}
+
+    def completion(model, messages, **kwargs):
+        seen["note"] = engine.busy_note
+        return _response(content="hi")
+
+    engine.completion_fn = completion
+    assert engine.submit("hello") == ["hi"]
+    assert seen["note"].startswith("thinking via")
+    assert engine.busy_note is None  # cleared after the turn
+
+
 def test_operator_history_trim_keeps_system(tmp_path: Path) -> None:
     _configure_defaults(tmp_path)
     engine = SessionEngine(runs_root=tmp_path / "runs")

@@ -4,7 +4,9 @@ All behavior lives in chi.session.engine.SessionEngine; this app only renders
 the transcript, streams live run events, and supplies modal pickers.
 """
 
+import itertools
 import threading
+import time
 from pathlib import Path
 
 from rich.text import Text
@@ -283,6 +285,9 @@ class ChiApp(App):
         self.engine.secret_fn = self._secret_from_thread
         self._offer_setup = offer_setup
         self.transcript_lines: list[str] = []  # plain mirror, used by tests
+        self._busy_count = 0
+        self._busy_since: float | None = None
+        self._spinner = itertools.cycle("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="header-row"):
@@ -382,12 +387,24 @@ class ChiApp(App):
         if isinstance(event.input, PromptInput):
             event.input.remember(text)
         self._write(f"❯ {text}")
+        self._busy_count += 1
+        if self._busy_since is None:
+            self._busy_since = time.monotonic()
         self._submit(text)
+
+    def _submit_done(self, lines: list[str]) -> None:
+        self._busy_count = max(0, self._busy_count - 1)
+        if self._busy_count == 0:
+            self._busy_since = None
+        self._write_lines(lines)
 
     @work(thread=True, exclusive=False)
     def _submit(self, text: str) -> None:
-        lines = self.engine.submit(text)
-        self.call_from_thread(self._write_lines, lines)
+        try:
+            lines = self.engine.submit(text)
+        except Exception as exc:  # engine.submit shields this, but the spinner must never stick
+            lines = [f"error: {exc}"]
+        self.call_from_thread(self._submit_done, lines)
         if self.engine.quit_requested:
             self.call_from_thread(self.exit)
 
@@ -416,6 +433,14 @@ class ChiApp(App):
             self._write(line)
         snap = self.engine.snapshot()
         telemetry = self._telemetry(snap)
+        if self._busy_count > 0 and self._busy_since is not None:
+            elapsed = int(time.monotonic() - self._busy_since)
+            note = self.engine.busy_note or "working"
+            status = f"{next(self._spinner)} {note}… {elapsed}s"
+            if telemetry:
+                status += f" · {telemetry}"
+            self.query_one("#status", Static).update(status)
+            return
         if snap["active"]:
             best = snap["best"] if snap["best"] is not None else "—"
             status = f"● running {snap['run_id'] or '(starting)'} · best {best}"
