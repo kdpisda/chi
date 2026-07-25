@@ -143,7 +143,6 @@ class ChiApp(App):
         return [DropdownItem(name) for name in sorted(self.engine.commands)]
 
     def on_mount(self) -> None:
-        self._write(BANNER, style="bold")
         self.set_interval(0.5, self._pump)
         self.query_one("#prompt", Input).focus()
 
