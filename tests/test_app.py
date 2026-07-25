@@ -21,7 +21,8 @@ def _isolated_config(tmp_path, monkeypatch):
 
 
 def _app(tmp_path: Path) -> ChiApp:
-    return ChiApp(SessionEngine(runs_root=tmp_path / "runs"))
+    # offer_setup=False: the first-run question modal would swallow test input
+    return ChiApp(SessionEngine(runs_root=tmp_path / "runs"), offer_setup=False)
 
 
 async def _submit_line(pilot, text: str) -> None:
@@ -81,6 +82,40 @@ async def test_run_streams_into_transcript_and_status(tmp_path: Path) -> None:
         await _submit_line(pilot, f"/run {fleet}")
         await _wait_for(app, "run finished [done]", timeout_s=60.0)
         assert any("★ new best" in line for line in app.transcript_lines)
+
+
+async def test_escape_returns_focus_to_prompt(tmp_path: Path) -> None:
+    from textual.widgets import Input, RichLog
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        app.set_focus(app.query_one("#transcript", RichLog))
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        assert app.focused is app.query_one("#prompt", Input)
+
+
+async def test_pick_screen_arrows_work_from_filter(tmp_path: Path) -> None:
+    from textual.widgets import SelectionList
+
+    app = _app(tmp_path)
+    results: list = []
+    async with app.run_test() as pilot:
+        app.push_screen(
+            PickScreen("pick", [("a", "Alpha"), ("b", "Beta"), ("c", "Gamma")], multi=True),
+            lambda values: results.extend(values or []),
+        )
+        await pilot.pause()
+        # focus is in the filter input; arrows must still drive the list
+        # (first press lands on item 0, second on item 1)
+        await pilot.press("down", "down")
+        sel = app.screen.query_one("#pick-list", SelectionList)
+        assert sel.highlighted == 1
+        await pilot.press("ctrl+space")   # toggle highlighted without leaving filter
+        await pilot.press("enter")
+        await pilot.pause()
+    assert results == ["b"]
 
 
 async def test_pick_screen_multi_filter_and_accept(tmp_path: Path) -> None:

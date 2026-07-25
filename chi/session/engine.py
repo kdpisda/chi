@@ -23,6 +23,7 @@ class SessionEngine:
         self.runs_root = Path(runs_root) if runs_root is not None else default_runs_root()
         self.picker_fn = picker_fn
         self.ask_fn: Callable | None = None  # frontends: (question, options) -> value|None
+        self.secret_fn: Callable | None = None  # frontends: (prompt) -> secret|None
         self.quit_requested = False
         self._quit_after_stop = False
         self._handle: RunHandle | None = None
@@ -49,6 +50,8 @@ class SessionEngine:
             "/quit": self._cmd_quit,
             "/exit": self._cmd_quit,
             "/resume": self._cmd_resume,
+            "/setup": self._cmd_setup,
+            "/setkey": self._cmd_setkey,
         }
 
     # -- public interface ------------------------------------------------
@@ -186,6 +189,9 @@ class SessionEngine:
             "/ledger [negative]  show experiments or dead-ends",
             "/champion           show the best candidate",
             "/resume [run_id]    attach to any past session, from any directory",
+            "/setup              apply the recommended model setup for this machine",
+            "/setkey <provider>  store an API key (masked input, saved 0600)",
+            "/models roles       assign models to orchestrator/planner/critic/researcher",
             "/quit               leave the session (also: exit, quit, /exit)",
             "",
             "Plain text while a run is active becomes a steering directive.",
@@ -217,19 +223,29 @@ class SessionEngine:
         save_user_config(cfg)
         return lines + [f"enabled: {', '.join(picked) or '(none)'}"]
 
-    def _cmd_models(self, args: str) -> list[str]:
-        from chi.cli import _coders_from_picks, _model_label
+    def _candidate_models(self) -> list:
         from chi.providers.catalog import list_models, list_providers
-        from chi.tui.picker import PickerUnavailable, fuzzy_select
-        from chi.userconfig import load_user_config, save_user_config
+        from chi.userconfig import load_user_config
 
         infos = list_providers()
         cfg = load_user_config()
         ready = [i.key for i in infos if i.ready]
         keys = [k for k in ready if k in cfg.enabled_providers] or ready
-        candidates = list_models(keys)
+        return list_models(keys)
+
+    def _cmd_models(self, args: str) -> list[str]:
+        if args.strip().split()[:1] == ["roles"]:
+            return self._models_for_roles()
+        from chi.cli import _model_label
+        from chi.config import CoderCfg
+        from chi.providers.catalog import CLI_MODEL_CHOICES, cli_command
+        from chi.tui.picker import PickerUnavailable, fuzzy_select
+        from chi.userconfig import load_user_config, save_user_config
+
+        candidates = self._candidate_models()
         if not candidates:
-            return ["no models available — check /vendors (keys/CLIs missing?)"]
+            return ["no models available — /vendors to check providers,"
+                    " /setkey <provider> to store a key"]
         try:
             picks = fuzzy_select(
                 "Pick coder models (tab to multi-select):",
@@ -243,11 +259,135 @@ class SessionEngine:
             ]
         if not picks:
             return ["nothing selected"]
-        cfg.default_coders = _coders_from_picks(picks, candidates)
+        by_id = {m.id: m for m in candidates}
+        coders: list[CoderCfg] = []
+        for n, pick in enumerate(picks, start=1):
+            info = by_id.get(pick)
+            if info is None or info.kind == "api":
+                coders.append(CoderCfg(id=f"c{n}", model=pick, adapter="litellm_loop"))
+                continue
+            variants = CLI_MODEL_CHOICES.get(pick, ["default"])
+            choice = "default"
+            if len(variants) > 1:
+                choice = self._ask(
+                    f"Which model should the {pick} CLI use?",
+                    [(v, v if v != "default" else "default (the CLI's own setting)")
+                     for v in variants],
+                ) or "default"
+            model_name = pick if choice == "default" else f"{pick}:{choice}"
+            coders.append(CoderCfg(id=f"c{n}", model=model_name, adapter="cli_subprocess",
+                                   command=cli_command(pick, choice)))
+        cfg = load_user_config()
+        cfg.default_coders = coders
         save_user_config(cfg)
-        return [f"saved {len(cfg.default_coders)} default coder(s):"] + [
-            f"  {c.id}: {c.model} ({c.adapter})" for c in cfg.default_coders
+        return [f"saved {len(coders)} default coder(s):"] + [
+            f"  {c.id}: {c.model} ({c.adapter})" for c in coders
         ]
+
+    ROLES = ["orchestrator", "planner", "critic", "researcher"]
+
+    def _models_for_roles(self) -> list[str]:
+        from chi.cli import _model_label
+        from chi.tui.picker import PickerUnavailable, fuzzy_select
+        from chi.userconfig import load_user_config, save_user_config
+
+        role = self._ask(
+            "Assign a model to which role? (stored for the upcoming orchestrator/critic layers)",
+            [(r, r) for r in self.ROLES],
+        )
+        if role is None:
+            return ["cancelled"]
+        candidates = [m for m in self._candidate_models() if m.kind == "api"]
+        if not candidates:
+            return ["no API models available — roles need an API model, not a CLI"]
+        try:
+            picked = fuzzy_select(
+                f"Model for {role}:",
+                [(m.id, _model_label(m)) for m in candidates],
+                multi=False,
+                picker_fn=self.picker_fn,
+            )
+        except PickerUnavailable:
+            return ["(picker unavailable — use `chi models --role "
+                    f"{role} --pick <model>`)"]
+        if not picked:
+            return ["nothing selected"]
+        cfg = load_user_config()
+        cfg.role_models[role] = picked[0]
+        save_user_config(cfg)
+        return [f"{role}: {picked[0]}"]
+
+    def _cmd_setup(self, args: str) -> list[str]:
+        from chi.providers.catalog import list_models, list_providers
+        from chi.providers.recommend import recommend_setup
+        from chi.userconfig import load_user_config, save_user_config
+
+        providers = list_providers()
+        coders, role_models, summary = recommend_setup(providers, list_models())
+        if not coders and not role_models:
+            return ["recommendation:"] + summary
+        choice = self._ask(
+            "Apply this recommended setup?\n" + "\n".join(summary),
+            [("apply", "Apply it"), ("cancel", "Cancel")],
+        )
+        if choice != "apply":
+            return ["recommendation:"] + summary + ["(not applied — /models to pick manually)"]
+        cfg = load_user_config()
+        cfg.default_coders = coders
+        cfg.role_models = {**cfg.role_models, **role_models}
+        save_user_config(cfg)
+        return ["applied recommended setup:"] + summary
+
+    def maybe_first_run_setup(self) -> list[str]:
+        """On a fresh machine, offer the recommended setup once (frontends call this)."""
+        from chi.userconfig import load_user_config
+
+        cfg = load_user_config()
+        if cfg.default_coders or cfg.role_models or self.ask_fn is None:
+            return []
+        choice = self._ask(
+            "No models configured yet. Set up now?",
+            [("recommended", "Use the recommended setup (detects your keys & CLIs)"),
+             ("manual", "Pick models manually"),
+             ("skip", "Not now (/setup later)")],
+        )
+        if choice == "recommended":
+            from chi.providers.catalog import list_models, list_providers
+            from chi.providers.recommend import recommend_setup
+            from chi.userconfig import save_user_config
+
+            coders, role_models, summary = recommend_setup(list_providers(), list_models())
+            if coders or role_models:
+                cfg.default_coders = coders
+                cfg.role_models = role_models
+                save_user_config(cfg)
+                return ["applied recommended setup:"] + summary
+            return ["nothing detected to recommend:"] + summary
+        if choice == "manual":
+            return self._cmd_models("")
+        return ["skipped — /setup anytime"]
+
+    def _cmd_setkey(self, args: str) -> list[str]:
+        import os
+
+        from chi.providers.catalog import key_env_var
+        from chi.userconfig import set_credential
+
+        provider = args.strip()
+        if not provider:
+            return ["usage: /setkey <provider>   (e.g. /setkey deepseek)"]
+        env_var = key_env_var(provider)
+        if env_var is None:
+            return [f"error: unknown provider '{provider}' — see /vendors"]
+        if self.secret_fn is None:
+            return ["no masked input available here — use `chi providers --set-key "
+                    f"{provider}` instead"]
+        value = self.secret_fn(f"{env_var} for {provider}")
+        if not value:
+            return ["cancelled"]
+        path = set_credential(env_var, value)
+        os.environ[env_var] = value  # effective immediately for /models readiness
+        return [f"stored {env_var} in {path} (0600) — {provider} is ready"]
 
     def _cmd_run(self, args: str) -> list[str]:
         if self.has_active_run():

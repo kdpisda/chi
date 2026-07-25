@@ -181,7 +181,7 @@ def test_context_guard_stops_iteration(tmp_path: Path) -> None:
 
 
 async def test_question_screen_toggler_and_digits(tmp_path: Path) -> None:
-    app = ChiApp(SessionEngine(runs_root=tmp_path / "runs"))
+    app = ChiApp(SessionEngine(runs_root=tmp_path / "runs"), offer_setup=False)
     answers: list = []
     async with app.run_test() as pilot:
         app.push_screen(

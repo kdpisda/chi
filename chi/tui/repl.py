@@ -58,6 +58,17 @@ def run_repl(
 
             engine.ask_fn = _ask
 
+        if engine.secret_fn is None:
+            import getpass
+
+            def _secret(prompt: str) -> str | None:
+                try:
+                    return getpass.getpass(f"{prompt}: ") or None
+                except (EOFError, KeyboardInterrupt):
+                    return None
+
+            engine.secret_fn = _secret
+
         def _default_prompt() -> str:
             return session.prompt("chi> ")
 

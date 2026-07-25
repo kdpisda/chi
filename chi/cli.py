@@ -143,15 +143,19 @@ def _model_label(info) -> str:
 
 
 def _coders_from_picks(picks: list[str], candidates: list) -> list[CoderCfg]:
+    from chi.providers.catalog import cli_command, split_cli_pick
+
     by_id = {c.id: c for c in candidates}
     coders: list[CoderCfg] = []
     for n, pick in enumerate(picks, start=1):
-        info = by_id.get(pick)
+        cli, variant = split_cli_pick(pick)  # supports "claude:opus" syntax
+        info = by_id.get(cli) or by_id.get(pick)
         if info is None or info.kind == "api":
             coders.append(CoderCfg(id=f"c{n}", model=pick, adapter="litellm_loop"))
         else:
-            coders.append(CoderCfg(id=f"c{n}", model=info.id, adapter="cli_subprocess",
-                                   command=info.command or CLI_SUBSTRATES.get(info.id)))
+            model_name = cli if variant in (None, "default") else f"{cli}:{variant}"
+            coders.append(CoderCfg(id=f"c{n}", model=model_name, adapter="cli_subprocess",
+                                   command=cli_command(cli, variant)))
     return coders
 
 
@@ -161,11 +165,27 @@ def models(
     fleet: Path | None = typer.Option(None, "--fleet", help="Write into this fleet.yaml"),
     provider: str = typer.Option("", "--provider", help="Limit to these providers (csv)"),
     all_providers: bool = typer.Option(False, "--all"),
+    role: str = typer.Option("", "--role",
+                             help="Assign one model to a role (orchestrator/planner/"
+                                  "critic/researcher) instead of coders"),
 ) -> None:
     """Pick coder models (fuzzy) into global defaults or a fleet.yaml."""
     import yaml as _yaml
 
     load_env()
+    if role:
+        valid_roles = ("orchestrator", "planner", "critic", "researcher")
+        if role not in valid_roles:
+            typer.echo(f"unknown role '{role}' — one of {', '.join(valid_roles)}")
+            raise typer.Exit(1)
+        if not pick:
+            typer.echo("--role requires --pick <model>")
+            raise typer.Exit(1)
+        cfg = load_user_config()
+        cfg.role_models[role] = pick.strip()
+        save_user_config(cfg)
+        typer.echo(f"{role}: {pick.strip()}")
+        return
     if provider:
         keys = [p.strip() for p in provider.split(",") if p.strip()]
     else:

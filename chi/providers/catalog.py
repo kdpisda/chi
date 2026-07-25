@@ -15,6 +15,32 @@ CLI_SUBSTRATES: dict[str, str] = {
     "codex": 'codex exec --full-auto "Follow the instructions in {prompt_file} exactly."',
 }
 
+# model variants selectable per CLI substrate ("default" = the CLI's own setting)
+CLI_MODEL_CHOICES: dict[str, list[str]] = {
+    "claude": ["default", "opus", "sonnet", "haiku"],
+    "codex": ["default"],
+}
+CLI_MODEL_FLAGS: dict[str, str] = {
+    "claude": "--model {model}",
+    "codex": "-m {model}",
+}
+
+
+def cli_command(cli: str, model: str | None = None) -> str:
+    """Command template for a CLI substrate, with the model flag when not default."""
+    base = CLI_SUBSTRATES[cli]
+    if model and model != "default":
+        return f"{base} {CLI_MODEL_FLAGS[cli].format(model=model)}"
+    return base
+
+
+def split_cli_pick(pick: str) -> tuple[str, str | None]:
+    """'claude:opus' -> ('claude', 'opus'); 'claude' -> ('claude', None)."""
+    if ":" in pick and pick.split(":", 1)[0] in CLI_SUBSTRATES:
+        cli, model = pick.split(":", 1)
+        return cli, model or None
+    return pick, None
+
 KEY_ENV_FALLBACK: dict[str, str] = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",

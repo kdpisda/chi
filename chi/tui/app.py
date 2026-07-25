@@ -103,11 +103,19 @@ class QuestionScreen(ModalScreen[str | None]):
 
 
 class PickScreen(ModalScreen[list]):
-    """Filterable selection modal (checkbox list for multi, option list for single)."""
+    """Filterable selection modal (checkbox list for multi, option list for single).
+
+    Fully keyboard-driven: type filters, ↑↓ move the list even while typing,
+    space (in the list) or tab+space toggles, enter accepts, esc cancels.
+    Mouse clicking still works everywhere.
+    """
 
     BINDINGS = [
         Binding("escape", "cancel", "cancel", priority=True),
         Binding("enter", "accept", "accept", priority=True),
+        Binding("up", "move(-1)", "up", priority=True, show=False),
+        Binding("down", "move(1)", "down", priority=True, show=False),
+        Binding("ctrl+space", "toggle_highlighted", "toggle", priority=True, show=False),
     ]
 
     def __init__(self, message: str, choices: list[tuple[str, str]], multi: bool) -> None:
@@ -125,8 +133,9 @@ class PickScreen(ModalScreen[list]):
                 yield SelectionList(id="pick-list")
             else:
                 yield OptionList(id="pick-list")
-            hint = ("space toggle · enter accept · esc cancel" if self._multi
-                    else "enter select · esc cancel")
+            hint = ("↑↓ move · ctrl+space toggle (or tab + space) · enter accept"
+                    " · esc cancel" if self._multi
+                    else "↑↓ move · enter select · esc cancel")
             yield Static(hint, id="pick-hint")
 
     def on_mount(self) -> None:
@@ -167,6 +176,24 @@ class PickScreen(ModalScreen[list]):
         if not self._multi:
             self.dismiss([event.option.id])
 
+    def _list_widget(self) -> OptionList:
+        return self.query_one("#pick-list", SelectionList if self._multi else OptionList)
+
+    def action_move(self, delta: int) -> None:
+        """Arrow keys drive the list even while the filter input has focus."""
+        widget = self._list_widget()
+        if widget.option_count == 0:
+            return
+        current = widget.highlighted if widget.highlighted is not None else -1
+        widget.highlighted = max(0, min(widget.option_count - 1, current + delta))
+
+    def action_toggle_highlighted(self) -> None:
+        if not self._multi:
+            return
+        widget = self.query_one("#pick-list", SelectionList)
+        if widget.highlighted is not None:
+            widget.toggle(widget.get_option_at_index(widget.highlighted))
+
     def action_accept(self) -> None:
         if self._multi:
             self._sync_chosen()
@@ -181,6 +208,31 @@ class PickScreen(ModalScreen[list]):
 
     def action_cancel(self) -> None:
         self.dismiss([])
+
+
+class SecretScreen(ModalScreen[str | None]):
+    """Masked single-value input (API keys) — enter submits, esc cancels."""
+
+    BINDINGS = [Binding("escape", "cancel", "cancel", priority=True)]
+
+    def __init__(self, prompt: str) -> None:
+        super().__init__()
+        self._prompt = prompt
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="sdialog"):
+            yield Static(self._prompt, id="s-title")
+            yield Input(password=True, placeholder="paste or type, enter to save", id="s-input")
+            yield Static("enter save · esc cancel", id="s-hint")
+
+    def on_mount(self) -> None:
+        self.query_one("#s-input", Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self.dismiss(event.value or None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
 
 
 class ChiApp(App):
@@ -210,14 +262,26 @@ class ChiApp(App):
     #q-title { text-style: bold; margin-bottom: 1; }
     #q-options { height: auto; }
     #q-hint { color: $text-muted; margin-top: 1; }
+    SecretScreen { align: center middle; }
+    #sdialog { width: 64; max-width: 90%; height: auto; border: round $accent;
+               background: $surface; padding: 1 2; }
+    #s-title { text-style: bold; margin-bottom: 1; }
+    #s-hint { color: $text-muted; margin-top: 1; }
     """
-    BINDINGS = [Binding("ctrl+c", "request_quit", "quit", priority=True)]
+    BINDINGS = [
+        Binding("ctrl+c", "request_quit", "quit", priority=True),
+        Binding("escape", "focus_prompt", show=False),
+        Binding("pageup", "scroll_transcript(-1)", show=False, priority=True),
+        Binding("pagedown", "scroll_transcript(1)", show=False, priority=True),
+    ]
 
-    def __init__(self, engine: SessionEngine | None = None) -> None:
+    def __init__(self, engine: SessionEngine | None = None, offer_setup: bool = True) -> None:
         super().__init__()
         self.engine = engine or SessionEngine()
         self.engine.picker_fn = self._pick_from_thread
         self.engine.ask_fn = self._ask_from_thread
+        self.engine.secret_fn = self._secret_from_thread
+        self._offer_setup = offer_setup
         self.transcript_lines: list[str] = []  # plain mirror, used by tests
 
     def compose(self) -> ComposeResult:
@@ -243,6 +307,25 @@ class ChiApp(App):
         self._refresh_header()
         self.set_interval(0.5, self._pump)
         self.query_one("#prompt", Input).focus()
+        if self._offer_setup:
+            self._first_run_setup()
+
+    @work(thread=True, exclusive=False)
+    def _first_run_setup(self) -> None:
+        lines = self.engine.maybe_first_run_setup()
+        if lines:
+            self.call_from_thread(self._write_lines, lines)
+
+    def action_focus_prompt(self) -> None:
+        """Escape always returns the keyboard to the prompt."""
+        self.query_one("#prompt", Input).focus()
+
+    def action_scroll_transcript(self, direction: int) -> None:
+        transcript = self.query_one("#transcript", RichLog)
+        if direction < 0:
+            transcript.scroll_page_up()
+        else:
+            transcript.scroll_page_down()
 
     def _refresh_header(self) -> None:
         from chi.userconfig import load_user_config
@@ -345,7 +428,15 @@ class ChiApp(App):
             status += " · /run start · /resume sessions · /help commands · exit quits"
         self.query_one("#status", Static).update(status)
 
-    # -- picker bridge (called from the submit worker thread) ---------------
+    # -- modal bridges (called from submit/setup worker threads) -------------
+
+    def _await_modal(self, done: threading.Event, timeout_s: float = 600.0) -> None:
+        """Wait for a modal result without ever blocking app shutdown."""
+        waited = 0.0
+        while not done.wait(0.2):
+            waited += 0.2
+            if waited >= timeout_s or not self.is_running:
+                return
 
     def _pick_from_thread(self, message: str, choices: list[tuple[str, str]],
                           multi: bool) -> list[str]:
@@ -360,7 +451,7 @@ class ChiApp(App):
             self.push_screen(PickScreen(message, choices, multi), finished)
 
         self.call_from_thread(show)
-        done.wait(timeout=600)
+        self._await_modal(done)
         return result
 
     def _ask_from_thread(self, question: str, options: list[tuple[str, str]]) -> str | None:
@@ -375,7 +466,22 @@ class ChiApp(App):
             self.push_screen(QuestionScreen(question, options), finished)
 
         self.call_from_thread(show)
-        done.wait(timeout=600)
+        self._await_modal(done)
+        return result[0] if result else None
+
+    def _secret_from_thread(self, prompt: str) -> str | None:
+        result: list[str | None] = []
+        done = threading.Event()
+
+        def show() -> None:
+            def finished(value: str | None) -> None:
+                result.append(value)
+                done.set()
+
+            self.push_screen(SecretScreen(prompt), finished)
+
+        self.call_from_thread(show)
+        self._await_modal(done)
         return result[0] if result else None
 
     def action_request_quit(self) -> None:

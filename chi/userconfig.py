@@ -86,6 +86,7 @@ def append_history(text: str) -> None:
 class UserConfig(BaseModel):
     enabled_providers: list[str] = Field(default_factory=list)
     default_coders: list[CoderCfg] = Field(default_factory=list)
+    role_models: dict[str, str] = Field(default_factory=dict)  # orchestrator/planner/…
 
 
 def _config_path() -> Path:
