@@ -14,6 +14,16 @@ from chi.session.runner import RunHandle
 from chi.store.db import Store, utcnow
 
 
+def _short_error(exc: Exception) -> str:
+    """Human-sized error text: strip provider JSON bodies, collapse whitespace."""
+    text = f"{type(exc).__name__}: {exc}"
+    brace = text.find("{")
+    if brace > 0:
+        text = text[:brace].rstrip(" -:(")
+    text = " ".join(text.split())
+    return text[:200] if text else type(exc).__name__
+
+
 class SessionEngine:
     """Session state + command dispatch, independent of any terminal UI."""
 
@@ -25,6 +35,7 @@ class SessionEngine:
         self.ask_fn: Callable | None = None  # frontends: (question, options) -> value|None
         self.secret_fn: Callable | None = None  # frontends: (prompt) -> secret|None
         self.completion_fn: Callable | None = None  # test seam for the operator LLM
+        self.cli_runner_fn: Callable | None = None  # test seam for the CLI operator
         self._operator_chat = None
         self.quit_requested = False
         self._quit_after_stop = False
@@ -73,8 +84,11 @@ class SessionEngine:
             try:
                 return handler(parts[1] if len(parts) > 1 else "")
             except Exception as exc:  # keep the session alive on any command failure
-                return [f"error: {exc}"]
-        return self._free_text(text)
+                return [f"error: {_short_error(exc)}"]
+        try:
+            return self._free_text(text)
+        except Exception as exc:  # never leak raw provider JSON into the transcript
+            return [f"error: {_short_error(exc)}"]
 
     def has_active_run(self) -> bool:
         """True while a run is executing."""
@@ -582,12 +596,23 @@ class SessionEngine:
             self._context_pct = 100.0 * result.tokens_in / context_limit
 
     def _operator(self):
-        """Lazily build the operator chat; None when no API model can drive it."""
+        """Lazily build the operator chat (CLI-backed or API-backed); None if neither."""
         if self._operator_chat is not None:
             return self._operator_chat
         from chi.userconfig import load_user_config
 
         cfg = load_user_config()
+        if cfg.operator_cli:
+            import shutil
+
+            if shutil.which(cfg.operator_cli) is not None:
+                from chi.session.operator import CliOperatorChat, fleet_summary_text
+
+                self._operator_chat = CliOperatorChat(
+                    self, cfg.operator_cli, runner=self.cli_runner_fn,
+                    fleet_summary=fleet_summary_text(),
+                )
+                return self._operator_chat
         model = cfg.role_models.get("orchestrator")
         if model is None:
             model = next(
@@ -604,23 +629,70 @@ class SessionEngine:
         )
         return self._operator_chat
 
+    def _available_clis(self) -> list[str]:
+        import shutil
+
+        from chi.providers.catalog import CLI_SUBSTRATES
+
+        return [cli for cli in CLI_SUBSTRATES if shutil.which(cli) is not None]
+
+    def _offer_operator_fallback(self, reason: str, retry_text: str) -> list[str]:
+        """Ask how chi should think when the API operator is missing or failing."""
+        from chi.userconfig import load_user_config, save_user_config
+
+        clis = self._available_clis()
+        options: list[tuple[str, str]] = [
+            (cli, f"Use the {cli} CLI as chi's brain (no API key needed)") for cli in clis
+        ]
+        options.append(("setkey", "Enter an API key now (/setkey <provider>)"))
+        options.append(("skip", "Not now"))
+        if self.ask_fn is None or not clis:
+            hints = [f"{reason}"]
+            if clis:
+                hints.append(f"tip: a vendor CLI can drive chi — set operator_cli:"
+                             f" {clis[0]} in ~/.config/chi/config.yaml")
+            hints.append("or store a key: /setkey <provider>")
+            return hints
+        choice = self._ask(f"{reason}\nHow should chi think?", options)
+        if choice in clis:
+            cfg = load_user_config()
+            cfg.operator_cli = choice
+            save_user_config(cfg)
+            self._operator_chat = None
+            operator = self._operator()
+            if operator is not None:
+                return [f"chi now thinks via the {choice} CLI"] + operator.turn(retry_text)
+            return [f"error: could not start the {choice} CLI operator"]
+        if choice == "setkey":
+            return ["run /setkey <provider> (e.g. /setkey anthropic), then ask again"]
+        return ["okay — conversation stays off until models are set (/setup, /setkey)"]
+
     def _free_text(self, text: str) -> list[str]:
         from chi.providers.budgets import BudgetExceededError
         from chi.userconfig import load_user_config
 
         operator = self._operator()
         if operator is None:
-            if not load_user_config().default_coders:
+            cfg = load_user_config()
+            if self.ask_fn is not None and self._available_clis():
+                reason = ("No models are configured yet." if not cfg.default_coders
+                          else "The conversational operator has no API model to think with.")
+                return self._offer_operator_fallback(reason, text)
+            if not cfg.default_coders:
                 return ["chi needs models before it can work — /setup applies the"
                         " recommended fleet, or /models to pick manually"]
-            return ["the conversational operator needs an API model (a CLI coder can't"
-                    " drive it) — /setkey <provider>, then /models roles (orchestrator)"
-                    " or add an API coder via /models"]
+            return ["the conversational operator needs an API model or a vendor CLI —"
+                    " /setkey <provider>, or set operator_cli: claude in"
+                    " ~/.config/chi/config.yaml"]
         try:
             return operator.turn(text)
         except BudgetExceededError as exc:
             return [f"error: {exc} — raise default_budget_usd in"
                     " ~/.config/chi/config.yaml to continue"]
+        except Exception as exc:  # provider/auth failures: recover, never dump JSON
+            self._operator_chat = None
+            return self._offer_operator_fallback(
+                f"The operator model failed: {_short_error(exc)}", text)
 
     @staticmethod
     def _append_steering(run_dir: Path, text: str) -> None:

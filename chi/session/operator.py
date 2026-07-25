@@ -150,36 +150,143 @@ class OperatorChat:
         return lines
 
     def _dispatch(self, name: str, args: dict) -> tuple[str, list[str]]:
-        """Run one tool; returns (tool output for the model, lines to show the user)."""
-        engine = self.engine
-        if name == "start_run":
-            shown = engine.launch_problem(str(args.get("problem_dir", "")),
-                                          args.get("max_iterations"))
-            return "\n".join(shown), shown
-        if name == "run_status":
-            snap = engine.snapshot()
-            return json.dumps(snap), []
-        if name == "get_champion":
-            shown = engine.commands["/champion"]("")
-            return "\n".join(shown), []
-        if name == "query_ledger":
-            shown = engine.commands["/ledger"](str(args.get("text", "")))
-            return "\n".join(shown[:20]), []
-        if name == "steer":
-            shown = engine.commands["/steer"](str(args.get("text", "")))
-            return "\n".join(shown), shown
-        if name == "stop_run":
-            shown = engine.commands["/stop"]("")
-            return "\n".join(shown), shown
-        if name == "list_sessions":
-            from chi.userconfig import list_sessions
+        return dispatch_tool(self.engine, name, args)
 
-            sessions = list_sessions()[:15]
-            return json.dumps(sessions), []
-        if name == "resume_session":
-            shown = engine.commands["/resume"](str(args.get("run_id", "")))
-            return "\n".join(shown), shown
-        return f"ERROR: unknown tool {name}", []
+
+def dispatch_tool(engine: "SessionEngine", name: str, args: dict) -> tuple[str, list[str]]:
+    """Run one operator tool; returns (output for the model, lines shown to the user)."""
+    if name == "start_run":
+        shown = engine.launch_problem(str(args.get("problem_dir", "")),
+                                      args.get("max_iterations"))
+        return "\n".join(shown), shown
+    if name == "run_status":
+        return json.dumps(engine.snapshot()), []
+    if name == "get_champion":
+        shown = engine.commands["/champion"]("")
+        return "\n".join(shown), []
+    if name == "query_ledger":
+        shown = engine.commands["/ledger"](str(args.get("text", "")))
+        return "\n".join(shown[:20]), []
+    if name == "steer":
+        shown = engine.commands["/steer"](str(args.get("text", "")))
+        return "\n".join(shown), shown
+    if name == "stop_run":
+        shown = engine.commands["/stop"]("")
+        return "\n".join(shown), shown
+    if name == "list_sessions":
+        from chi.userconfig import list_sessions
+
+        return json.dumps(list_sessions()[:15]), []
+    if name == "resume_session":
+        shown = engine.commands["/resume"](str(args.get("run_id", "")))
+        return "\n".join(shown), shown
+    return f"ERROR: unknown tool {name}", []
+
+
+CLI_PROMPT = """You are chi (χ), an autoresearch harness operator in a terminal session.
+You control real runs of coding agents against problems with programmatic evaluators.
+Reply with ONLY one JSON object, nothing else. Available actions:
+{{"action":"reply","text":"..."}}                       answer the user (concise, terminal)
+{{"action":"start_run","problem_dir":"...","max_iterations":0}}   start a run (dir has problem.yaml; max_iterations optional)
+{{"action":"run_status"}}  {{"action":"get_champion"}}  {{"action":"query_ledger","text":"..."}}
+{{"action":"steer","text":"..."}}  {{"action":"stop_run"}}
+{{"action":"list_sessions"}}  {{"action":"resume_session","run_id":"..."}}
+Never invent scores or state — use the state below and the query actions.
+
+State: {state}
+Fleet: {fleet_summary}
+
+Conversation so far:
+{history}
+user: {text}
+
+JSON:"""
+
+
+def _default_cli_runner(cli: str) -> Callable[[str], str]:
+    """Run one prompt through a vendor CLI, returning its stdout text."""
+    import subprocess
+
+    def run(prompt: str) -> str:
+        commands = {"claude": ["claude", "-p", prompt],
+                    "codex": ["codex", "exec", prompt]}
+        proc = subprocess.run(commands[cli], capture_output=True, text=True, timeout=240)
+        return proc.stdout.strip() or proc.stderr.strip()
+
+    return run
+
+
+def _extract_json(text: str) -> dict | None:
+    """First parseable JSON object in text, else None."""
+    start = text.find("{")
+    while start != -1:
+        depth = 0
+        for end in range(start, len(text)):
+            if text[end] == "{":
+                depth += 1
+            elif text[end] == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        parsed = json.loads(text[start:end + 1])
+                        return parsed if isinstance(parsed, dict) else None
+                    except json.JSONDecodeError:
+                        break
+        start = text.find("{", start + 1)
+    return None
+
+
+class CliOperatorChat:
+    """Operator brain driven by a vendor CLI (claude/codex) — no API key needed.
+
+    The CLI is used for pure text generation with a JSON-action protocol;
+    chi executes the actions itself, so the CLI needs no tool permissions.
+    """
+
+    def __init__(
+        self,
+        engine: "SessionEngine",
+        cli: str,
+        runner: Callable[[str], str] | None = None,
+        fleet_summary: str = "",
+    ) -> None:
+        self.engine = engine
+        self.cli = cli
+        self.model = f"{cli} (cli)"
+        self.runner = runner or _default_cli_runner(cli)
+        self.fleet_summary = fleet_summary or "(none yet)"
+        self.history: list[tuple[str, str]] = []  # (speaker, text), trimmed
+        self.last_context_pct = None
+
+    def _prompt(self, text: str, extra: str = "") -> str:
+        history = "\n".join(f"{who}: {what}" for who, what in self.history[-20:])
+        return CLI_PROMPT.format(
+            state=json.dumps(self.engine.snapshot()),
+            fleet_summary=self.fleet_summary,
+            history=history + (f"\n{extra}" if extra else ""),
+            text=text,
+        )
+
+    def turn(self, text: str) -> list[str]:
+        """One user turn: at most one action plus one follow-up reply."""
+        self.history.append(("user", text))
+        raw = self.runner(self._prompt(text))
+        action = _extract_json(raw)
+        if action is None or action.get("action") in (None, "reply"):
+            reply = (action or {}).get("text") or raw or "(no reply)"
+            self.history.append(("chi", reply))
+            return [reply]
+        name = str(action.pop("action"))
+        output, shown = dispatch_tool(self.engine, name, action)
+        self.history.append(("chi", f"[{name}] {output[:200]}"))
+        followup_raw = self.runner(
+            self._prompt(text, extra=f"chi executed {name}; result: {output[:500]}\n"
+                                     "Now respond to the user with a reply action.")
+        )
+        followup = _extract_json(followup_raw)
+        reply = (followup or {}).get("text") or followup_raw or "(done)"
+        self.history.append(("chi", reply))
+        return shown + [reply]
 
 
 def fleet_summary_text() -> str:

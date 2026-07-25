@@ -88,6 +88,7 @@ class UserConfig(BaseModel):
     default_coders: list[CoderCfg] = Field(default_factory=list)
     role_models: dict[str, str] = Field(default_factory=dict)  # orchestrator/planner/…
     default_budget_usd: float = 5.0  # cap for conversation + ephemeral runs
+    operator_cli: str | None = None  # drive conversation via a vendor CLI (claude/codex)
 
 
 def _config_path() -> Path:
