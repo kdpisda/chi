@@ -5,8 +5,8 @@ description: >
   stdlib approach is allowed; the shipped baseline is intentionally O(n^2).
 candidate: candidate.py
 entrypoints:
-  correctness: "python check.py {candidate} --seed {seed}"
-  benchmark: "python bench.py {candidate}"
+  correctness: "{python} check.py {candidate} --seed {seed}"
+  benchmark: "{python} bench.py {candidate}"
 score:
   metric: runtime_ms
   direction: minimize

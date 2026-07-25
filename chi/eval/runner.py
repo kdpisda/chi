@@ -4,6 +4,7 @@ import json
 import shlex
 import statistics
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -61,7 +62,11 @@ def evaluate(
     detail = ""
     correct = True
     for seed in problem.correctness.seeds:
-        cmd = problem.entrypoints.correctness.format(candidate=problem.candidate, seed=seed)
+        # {python} resolves to the running interpreter so problems don't depend
+        # on a bare `python` being on PATH (it isn't in uv tool environments).
+        cmd = problem.entrypoints.correctness.format(
+            candidate=problem.candidate, seed=seed, python=sys.executable
+        )
         try:
             proc = _run(cmd, workdir, problem.timeout_seconds)
         except subprocess.TimeoutExpired:
@@ -81,7 +86,9 @@ def evaluate(
     noise_std: float | None = None
     if correct:
         samples: list[float] = []
-        cmd = problem.entrypoints.benchmark.format(candidate=problem.candidate)
+        cmd = problem.entrypoints.benchmark.format(
+            candidate=problem.candidate, python=sys.executable
+        )
         for _ in range(problem.score.repeats):
             try:
                 proc = _run(cmd, workdir, problem.timeout_seconds)

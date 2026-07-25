@@ -41,6 +41,18 @@ def _mkproblem(tmp_path: Path, candidate_src: str) -> Path:
     return wd
 
 
+def test_python_placeholder_resolves_to_interpreter(tmp_path: Path) -> None:
+    wd = _mkproblem(tmp_path, "# GOOD FAST\n")
+    manifest = dict(MANIFEST)
+    manifest["entrypoints"] = {
+        "correctness": "{python} check.py {candidate} --seed {seed}",
+        "benchmark": "{python} bench.py {candidate}",
+    }
+    (wd / "problem.yaml").write_text(yaml.safe_dump(manifest))
+    res = evaluate(load_problem(wd), wd)
+    assert res.correct and res.score_value == 5.0
+
+
 def test_code_hash_normalizes_whitespace() -> None:
     assert code_hash("x = 1\n") == code_hash("x = 1   \r\n\n\n")
     assert code_hash("x = 1") != code_hash("x = 2")
