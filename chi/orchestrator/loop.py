@@ -1,6 +1,7 @@
 """Deterministic v1 run loop: one coder agent, steering, watchdog, budgets."""
 
 import shutil
+import threading
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -64,6 +65,8 @@ def start_run(
     fleet: FleetConfig,
     runs_root: Path = Path("runs"),
     completion_fn: Callable | None = None,
+    on_run_created: Callable[[str, Path], None] | None = None,
+    stop_event: threading.Event | None = None,
 ) -> RunSummary:
     """Execute one full v1 run; returns the summary."""
     run_id = f"{fleet.run_name}-{uuid.uuid4().hex[:6]}"
@@ -74,6 +77,8 @@ def start_run(
         " VALUES (?,?,?,?)",
         (run_id, str(fleet.problem), fleet.model_dump_json(), utcnow()),
     )
+    if on_run_created is not None:
+        on_run_created(run_id, run_dir)
     workdir = run_dir / "workdir"
     shutil.copytree(fleet.problem, workdir)
     problem = load_problem(workdir)
@@ -101,6 +106,12 @@ def start_run(
     mutation_note = ""
     iterations_done = 0
     for iteration in range(policies.max_iterations):
+        if stop_event is not None and stop_event.is_set():
+            events.append_event(store, run_id, events.STOP, agent_id=coder.id,
+                                payload={"reason": "operator"})
+            tasks.release_task(store, run_id, task_id)
+            status = "stopped"
+            break
         state = steering.refresh()
         tasks.expire_stale_leases(store, run_id)
         tasks.renew_lease(store, task_id, policies.lease_seconds)
