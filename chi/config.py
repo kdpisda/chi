@@ -33,8 +33,22 @@ class FleetConfig(BaseModel):
     run_name: str
     problem: Path
     budgets: BudgetsCfg = Field(default_factory=BudgetsCfg)
-    coders: list[CoderCfg]
+    coders: list[CoderCfg] = Field(default_factory=list)
     policies: PoliciesCfg = Field(default_factory=PoliciesCfg)
+
+
+def resolve_coders(fleet: FleetConfig) -> list[CoderCfg]:
+    """Fleet coders, else the user's global default_coders; error when neither."""
+    if fleet.coders:
+        return fleet.coders
+    from chi.userconfig import load_user_config
+
+    defaults = load_user_config().default_coders
+    if defaults:
+        return defaults
+    raise ValueError(
+        "no coders configured — run /models (or `chi models`) or add coders to fleet.yaml"
+    )
 
 
 class EntrypointsCfg(BaseModel):

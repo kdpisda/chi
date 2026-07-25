@@ -5,16 +5,24 @@ from pathlib import Path
 
 import typer
 
-from chi.config import load_fleet, load_problem
+from chi.config import CoderCfg, load_fleet, load_problem
 from chi.providers.budgets import BudgetTracker
+from chi.providers.catalog import CLI_SUBSTRATES, key_env_var, list_models, list_providers
 from chi.providers.llm import ping as _ping_impl
+from chi.tui.picker import PickerUnavailable, fuzzy_select
+from chi.userconfig import load_env, load_user_config, save_user_config, set_credential
 
 app = typer.Typer(no_args_is_help=True, help="Chi (χ) — autoresearch harness.")
 
 
-@app.callback()
-def _main() -> None:
-    """Chi (χ) — autoresearch harness."""
+@app.callback(invoke_without_command=True)
+def _main(ctx: typer.Context) -> None:
+    """Chi (χ) — autoresearch harness. Bare `chi` opens the interactive session."""
+    if ctx.invoked_subcommand is None:
+        from chi.tui.repl import run_repl
+
+        load_env()
+        run_repl()
 
 
 @app.command()
@@ -31,9 +39,7 @@ def ping(
     budget_usd: float = typer.Option(0.10, "--budget-usd", help="Max spend for the ping sweep"),
 ) -> None:
     """Call every distinct model in the fleet once; print latency/cost/tokens."""
-    from dotenv import load_dotenv
-
-    load_dotenv()
+    load_env()
     cfg = load_fleet(fleet)
     models = sorted({c.model for c in cfg.coders})
     rows = _ping_impl(models, BudgetTracker(total_usd=budget_usd))
@@ -61,6 +67,133 @@ def validate(path: Path = typer.Argument(..., help="fleet.yaml or a problem dire
     except Exception as exc:  # surface validation errors as CLI failure
         typer.echo(f"INVALID: {exc}")
         raise typer.Exit(1)
+
+
+# --- provider / model selection ---------------------------------------------
+
+
+def _provider_table(all_providers: bool) -> list:
+    infos = list_providers(all_providers=all_providers)
+    enabled = set(load_user_config().enabled_providers)
+    for info in infos:
+        mark = "*" if info.key in enabled else " "
+        state = "ready" if info.ready else info.detail
+        typer.echo(f"{mark} {info.key:<14} {info.kind:<4} {state}")
+    return infos
+
+
+def _providers_impl(
+    all_providers: bool = typer.Option(False, "--all"),
+    enable: str = typer.Option("", "--enable", help="Comma-separated providers to enable"),
+    set_key: str = typer.Option("", "--set-key", help="Provider to store an API key for"),
+) -> None:
+    """Show provider status; enable providers or store an API key."""
+    load_env()
+    if set_key:
+        env_var = key_env_var(set_key)
+        if env_var is None:
+            typer.echo(f"unknown provider '{set_key}'")
+            raise typer.Exit(1)
+        value = typer.prompt(f"{env_var}", hide_input=True)
+        path = set_credential(env_var, value)
+        typer.echo(f"stored {env_var} in {path}")
+        return
+    infos = _provider_table(all_providers)
+    cfg = load_user_config()
+    if enable:
+        cfg.enabled_providers = [p.strip() for p in enable.split(",") if p.strip()]
+    else:
+        try:
+            picked = fuzzy_select(
+                "Enable providers (tab to multi-select):",
+                [(i.key, f"{i.key} [{i.kind}] {'ready' if i.ready else i.detail}")
+                 for i in infos],
+                multi=True,
+            )
+            cfg.enabled_providers = picked
+        except PickerUnavailable:
+            typer.echo("(non-interactive: use --enable a,b or --set-key PROVIDER)")
+            return
+    save_user_config(cfg)
+    typer.echo(f"enabled: {', '.join(cfg.enabled_providers) or '(none)'}")
+
+
+app.command("providers")(_providers_impl)
+app.command("vendors", hidden=True)(_providers_impl)
+
+
+def _model_label(info) -> str:
+    if info.kind == "cli":
+        return f"{info.id} [cli substrate]"
+    if info.input_cost_per_m is None:
+        return f"{info.id}"
+    return (f"{info.id}  ${info.input_cost_per_m:.2f}/M in,"
+            f" ${info.output_cost_per_m:.2f}/M out")
+
+
+def _coders_from_picks(picks: list[str], candidates: list) -> list[CoderCfg]:
+    by_id = {c.id: c for c in candidates}
+    coders: list[CoderCfg] = []
+    for n, pick in enumerate(picks, start=1):
+        info = by_id.get(pick)
+        if info is None or info.kind == "api":
+            coders.append(CoderCfg(id=f"c{n}", model=pick, adapter="litellm_loop"))
+        else:
+            coders.append(CoderCfg(id=f"c{n}", model=info.id, adapter="cli_subprocess",
+                                   command=info.command or CLI_SUBSTRATES.get(info.id)))
+    return coders
+
+
+@app.command()
+def models(
+    pick: str = typer.Option("", "--pick", help="Comma-separated model ids (non-interactive)"),
+    fleet: Path | None = typer.Option(None, "--fleet", help="Write into this fleet.yaml"),
+    provider: str = typer.Option("", "--provider", help="Limit to these providers (csv)"),
+    all_providers: bool = typer.Option(False, "--all"),
+) -> None:
+    """Pick coder models (fuzzy) into global defaults or a fleet.yaml."""
+    import yaml as _yaml
+
+    load_env()
+    if provider:
+        keys = [p.strip() for p in provider.split(",") if p.strip()]
+    else:
+        infos = list_providers(all_providers=all_providers)
+        enabled = set(load_user_config().enabled_providers)
+        ready = [i.key for i in infos if i.ready]
+        keys = [k for k in ready if k in enabled] or ready
+    candidates = list_models(keys)
+    if not candidates:
+        typer.echo("no models available — check `chi providers` (keys/CLIs missing?)")
+        raise typer.Exit(1)
+    if pick:
+        picks = [p.strip() for p in pick.split(",") if p.strip()]
+    else:
+        try:
+            picks = fuzzy_select(
+                "Pick coder models (tab to multi-select):",
+                [(m.id, _model_label(m)) for m in candidates],
+                multi=True,
+            )
+        except PickerUnavailable:
+            for m in candidates:
+                typer.echo(_model_label(m))
+            typer.echo("(non-interactive: use --pick model1,model2)")
+            return
+    if not picks:
+        typer.echo("nothing selected")
+        raise typer.Exit(1)
+    coders = _coders_from_picks(picks, candidates)
+    if fleet is not None:
+        data = _yaml.safe_load(fleet.read_text())
+        data["coders"] = [c.model_dump(exclude_none=True) for c in coders]
+        fleet.write_text(_yaml.safe_dump(data, sort_keys=False))
+        typer.echo(f"wrote {len(coders)} coder(s) to {fleet}")
+    else:
+        cfg = load_user_config()
+        cfg.default_coders = coders
+        save_user_config(cfg)
+        typer.echo(f"saved {len(coders)} default coder(s) to global config")
 
 
 # --- agent verbs: the ONLY write path agents get to the store ---------------
@@ -204,11 +337,9 @@ def run(
     """Start a run and print the summary as JSON."""
     from dataclasses import asdict
 
-    from dotenv import load_dotenv
-
     from chi.orchestrator.loop import start_run
 
-    load_dotenv()
+    load_env()
     summary = start_run(load_fleet(fleet_path), runs_root=runs_root)
     out = asdict(summary)
     out["run_dir"] = str(out["run_dir"])

@@ -11,7 +11,9 @@ from chi.agents.context import build_seed_context
 from chi.agents.litellm_loop import LiteLLMLoopAdapter
 from chi.agents.protocol import CoderAdapter
 from chi.agents.scripted import ScriptedAdapter
-from chi.config import CoderCfg, FleetConfig, PoliciesCfg, ProblemConfig, load_problem
+from chi.config import (
+    CoderCfg, FleetConfig, PoliciesCfg, ProblemConfig, load_problem, resolve_coders,
+)
 from chi.eval.hashing import code_hash
 from chi.eval.runner import evaluate
 from chi.orchestrator.steering import Steering
@@ -78,7 +80,7 @@ def start_run(
     policies = fleet.policies
     budget = BudgetTracker(fleet.budgets.total_usd, fleet.budgets.per_role_usd,
                            store=store, run_id=run_id)
-    coder = fleet.coders[0]
+    coder = resolve_coders(fleet)[0]
     store.execute(
         "INSERT INTO agents (agent_id, run_id, adapter, model, workdir, started_at)"
         " VALUES (?,?,?,?,?,?)",
