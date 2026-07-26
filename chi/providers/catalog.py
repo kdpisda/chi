@@ -9,11 +9,17 @@ FEATURED_PROVIDERS = [
     "minimax", "mistral", "xai", "openrouter",
 ]
 
+# Verified-working headless invocations (2026-07-26). Each is jailed to the
+# agent's worktree (cwd) and told to follow the prompt file chi writes there.
 CLI_SUBSTRATES: dict[str, str] = {
     "claude": ('claude -p "Follow the instructions in {prompt_file} exactly."'
                " --allowedTools Bash,Edit,Write,Read"),
-    "codex": 'codex exec --full-auto "Follow the instructions in {prompt_file} exactly."',
-    "grok": 'grok --no-interactive "Follow the instructions in {prompt_file} exactly."',
+    # codex: --skip-git-repo-check (worktrees aren't git repos) + workspace-write
+    # sandbox so it can edit the candidate and run `chi eval`
+    "codex": ('codex exec --skip-git-repo-check --sandbox workspace-write'
+              ' "Follow the instructions in {prompt_file} exactly."'),
+    # grok reads the prompt file directly; --always-approve runs tools headlessly
+    "grok": "grok --prompt-file {prompt_file} --always-approve",
 }
 
 # model variants selectable per CLI substrate ("default" = the CLI's own setting)
