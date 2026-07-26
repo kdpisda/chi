@@ -85,6 +85,9 @@ class ProblemConfig(BaseModel):
     submit_cmd: str | None = None  # popcorn-cli leaderboard submit
     ration_per_window: int = 1
     ration_window_seconds: float = 1800.0
+    auto_submit: bool = False  # submit real improvements to the leaderboard unattended
+    promote_margin_pct: float = 0.5  # must beat the last submission by this to auto-submit
+    current_best: float | None = None  # seed with your live leaderboard best
 
 
 def load_fleet(path: Path) -> FleetConfig:

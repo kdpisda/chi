@@ -644,6 +644,30 @@ class SessionEngine:
 
     # -- free text -----------------------------------------------------------
 
+    def set_auto_submit(self, on: bool, current_best=None, margin_pct=None) -> list[str]:
+        """Persist auto-submit settings onto the active run's problem pack, so the
+        NEXT run (or a restart) submits real improvements unattended."""
+        import yaml
+
+        run_dir = self._active_or_last_run_dir()
+        target = (run_dir / "workdir" / "problem.yaml") if run_dir else None
+        if target is None or not target.exists():
+            return ["no active problem to configure — /run or /resume first"]
+        data = yaml.safe_load(target.read_text())
+        if on and not data.get("leaderboard"):
+            return ["this problem has no leaderboard configured — auto-submit needs one"]
+        data["auto_submit"] = bool(on)
+        if current_best is not None:
+            data["current_best"] = float(current_best)
+        if margin_pct is not None:
+            data["promote_margin_pct"] = float(margin_pct)
+        target.write_text(yaml.safe_dump(data, sort_keys=False))
+        if not on:
+            return ["auto-submit OFF — chi will not submit on its own"]
+        return [f"auto-submit ON for {data['leaderboard']}: chi will submit any"
+                f" correct candidate that beats {data.get('current_best', 'the best')}"
+                f" by >{data.get('promote_margin_pct', 0.5)}% (serialized + rationed)"]
+
     def submit_leaderboard(self, reason: str) -> list[str]:
         """Approval-gated, mutex-serialized leaderboard submission of the champion.
 

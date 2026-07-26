@@ -68,6 +68,17 @@ TOOLS = [
         "parameters": {"type": "object", "properties": {"url": {"type": "string"}},
                        "required": ["url"]}}},
     {"type": "function", "function": {
+        "name": "set_auto_submit",
+        "description": "Turn autonomous leaderboard submission on/off for the active"
+                       " run's problem. When on, the fleet submits real improvements"
+                       " itself (correct + beats current best by margin + rationed)."
+                       " Use when the user asks chi to 'keep submitting on its own'.",
+        "parameters": {"type": "object",
+                       "properties": {"on": {"type": "boolean"},
+                                      "current_best": {"type": "number"},
+                                      "margin_pct": {"type": "number"}},
+                       "required": ["on"]}}},
+    {"type": "function", "function": {
         "name": "submit_leaderboard",
         "description": "Submit the current champion to the live leaderboard via"
                        " popcorn-cli. SERIALIZED (one at a time) and rationed;"
@@ -341,6 +352,10 @@ def dispatch_tool(engine: "SessionEngine", name: str, args: dict) -> tuple[str, 
         return explore_path(str(args.get("path", ""))), []
     if name == "fetch":
         return fetch_url(str(args.get("url", "")), opener=engine.fetch_opener), []
+    if name == "set_auto_submit":
+        shown = engine.set_auto_submit(
+            bool(args.get("on")), args.get("current_best"), args.get("margin_pct"))
+        return "\n".join(shown), shown
     if name == "submit_leaderboard":
         shown = engine.submit_leaderboard(str(args.get("reason", "")))
         return "\n".join(shown), shown

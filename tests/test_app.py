@@ -84,42 +84,32 @@ async def test_run_streams_into_transcript_and_status(tmp_path: Path) -> None:
         assert any("★ new best" in line for line in app.transcript_lines)
 
 
-async def test_working_indicator_while_operator_thinks(tmp_path: Path) -> None:
-    import time as _time
-    from types import SimpleNamespace
-
-    from chi.config import CoderCfg
-    from chi.userconfig import UserConfig, save_user_config
-
-    save_user_config(UserConfig(role_models={"orchestrator": "test/m"}))
-
-    def slow_completion(model, messages, **kwargs):
-        _time.sleep(1.2)
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="done",
-                                                              tool_calls=None))],
-            usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1),
-            _hidden_params={"response_cost": 0.0},
-        )
+async def test_working_indicator_shows_and_hides_with_busy_state(tmp_path: Path) -> None:
+    # the indicator is a pure function of busy state; test that _pump reveals it
+    # while busy and hides it when idle (the threaded operator round-trip that
+    # sets busy state is covered by the engine/operator unit tests + live use)
+    from textual.widgets import Static
 
     app = _app(tmp_path)
-    app.engine.completion_fn = slow_completion
     async with app.run_test() as pilot:
-        for ch in "hi":
-            await pilot.press(ch)
-        await pilot.press("enter")
-        await asyncio.sleep(0.7)
-        await pilot.pause()
-        assert app._busy_count == 1  # spinner active while the operator thinks
-        from textual.widgets import Static
-
         activity = app.query_one("#activity", Static)
-        assert activity.display is True  # inline line right below the user's query
-        await _wait_for(app, "done", timeout_s=15.0)
-        await asyncio.sleep(0.8)  # let the next pump tick hide the activity line
+        assert activity.display is False  # idle at start
+
+        import time as _time
+
+        app._busy_count = 1
+        app._busy_since = _time.monotonic()
+        app.engine.busy_note = "thinking via test/model"
+        app._pump()
         await pilot.pause()
-        assert app._busy_count == 0
-        assert activity.display is False
+        assert activity.display is True  # shows while busy, below the user's query
+        assert "thinking" in str(activity.render())
+
+        app._busy_count = 0
+        app._busy_since = None
+        app._pump()
+        await pilot.pause()
+        assert activity.display is False  # hides when idle
 
 
 async def test_escape_returns_focus_to_prompt(tmp_path: Path) -> None:

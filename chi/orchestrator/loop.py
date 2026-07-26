@@ -61,9 +61,27 @@ def _make_adapter(
     raise ValueError(f"unknown adapter {coder.adapter}")
 
 
+def _build_auto_submitter(store, run_id, problem):
+    """AutoSubmitter when the problem targets a leaderboard with auto_submit on."""
+    if not (getattr(problem, "leaderboard", None) and getattr(problem, "auto_submit", False)):
+        return None
+    from chi.eval.autosubmit import AutoSubmitter
+    from chi.eval.popcorn import PopcornBackend
+
+    backend = PopcornBackend(problem.leaderboard, problem.benchmark_cmd or "",
+                             problem.submit_cmd or "")
+
+    def emit(line: str) -> None:
+        events.append_event(store, run_id, events.STATUS, payload={"auto_submit": line})
+
+    return AutoSubmitter(backend, direction=problem.score.direction,
+                         margin_pct=problem.promote_margin_pct,
+                         baseline=problem.current_best, emit=emit)
+
+
 def _run_coder(coder, workdir, task_id, strategy, store, run_id, problem, budget,
                policies, steering, baseline_score, stop_event, completion_fn,
-               coder_status) -> None:
+               coder_status, auto_submitter=None) -> None:
     """One coder agent's iteration loop, in its own worktree (runs in a thread)."""
     adapter = _make_adapter(coder, store, run_id, workdir, problem, budget, policies,
                             completion_fn)
@@ -109,6 +127,15 @@ def _run_coder(coder, workdir, task_id, strategy, store, run_id, problem, budget
                             cost_usd=outcome.cost_usd, tokens_in=outcome.tokens_in,
                             tokens_out=outcome.tokens_out)
         candidate_hash = code_hash((workdir / problem.candidate).read_text())
+        # auto-submit the candidate just benchmarked, if it clears the rails
+        if auto_submitter is not None and outcome.evals_run > 0:
+            exp = ledger.get_experiment(store, candidate_hash)
+            if exp is not None:
+                decision = auto_submitter.consider(
+                    workdir / problem.candidate, exp["score_value"], bool(exp["correct"]))
+                events.append_event(
+                    store, run_id, events.STATUS, agent_id=coder.id, task_id=task_id,
+                    payload={"auto_submit": decision.reason, "submitted": decision.submitted})
         verdict = watchdog.observe_iteration(new_evals=outcome.evals_run,
                                              candidate_hash=candidate_hash)
         if verdict.action == "mutate":
@@ -173,6 +200,10 @@ def start_run(
     coders = resolve_coders(fleet)
     steering = Steering(store, run_id, problem.score.direction)
 
+    # auto-submit: when the problem targets a leaderboard and it's enabled, the
+    # fleet submits real improvements itself (correctness + margin + gate rails)
+    auto_submitter = _build_auto_submitter(store, run_id, problem)
+
     # baseline established once, in the shared workdir the champion is exported from
     baseline = evaluate(problem, base_workdir, store=store, run_id=run_id,
                         agent_id="baseline")
@@ -197,7 +228,7 @@ def start_run(
         tasks.claim_task(store, run_id, coder.id, policies.lease_seconds)
         args = (coder, coder_workdir, task_id, strategy, store, run_id, problem,
                 budget, policies, steering, baseline_score, stop_event, completion_fn,
-                coder_status)
+                coder_status, auto_submitter)
         threads.append(threading.Thread(target=_run_coder, args=args, daemon=True))
 
     for thread in threads:
