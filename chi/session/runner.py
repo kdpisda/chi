@@ -17,9 +17,14 @@ class RunHandle:
         runs_root: Path,
         completion_fn: Callable | None = None,
     ) -> None:
+        from chi.userconfig import sessions_file
+
         self._fleet = fleet
         self._runs_root = runs_root
         self._completion_fn = completion_fn
+        # resolve on the caller's thread: the run thread must never re-resolve
+        # env-dependent paths (a test-env teardown race polluted the real registry)
+        self._sessions_path = sessions_file()
         self.ready = threading.Event()
         self.run_id: str | None = None
         self.run_dir: Path | None = None
@@ -41,6 +46,7 @@ class RunHandle:
                 completion_fn=self._completion_fn,
                 on_run_created=self._on_created,
                 stop_event=self.stop_event,
+                sessions_path=self._sessions_path,
             )
         except Exception as exc:  # surfaced to the session transcript, never raised
             self.error = str(exc)

@@ -67,6 +67,7 @@ def start_run(
     completion_fn: Callable | None = None,
     on_run_created: Callable[[str, Path], None] | None = None,
     stop_event: threading.Event | None = None,
+    sessions_path: Path | None = None,
 ) -> RunSummary:
     """Execute one full v1 run; returns the summary."""
     run_id = f"{fleet.run_name}-{uuid.uuid4().hex[:6]}"
@@ -85,7 +86,7 @@ def start_run(
         "run_id": run_id, "run_dir": str(run_dir.resolve()), "status": "running",
         "run_name": fleet.run_name, "problem": str(fleet.problem),
         "cwd": str(Path.cwd()), "started_at": utcnow(),
-    })
+    }, sessions_path=sessions_path)
     workdir = run_dir / "workdir"
     shutil.copytree(fleet.problem, workdir)
     problem = load_problem(workdir)
@@ -169,7 +170,7 @@ def start_run(
         "run_id": run_id, "run_dir": str(run_dir.resolve()), "status": status,
         "ended_at": utcnow(), "baseline_score": baseline_score,
         "champion_score": None if champ is None else champ["score_value"],
-    })
+    }, sessions_path=sessions_path)
     return RunSummary(
         run_id=run_id, run_dir=run_dir, iterations=iterations_done,
         baseline_score=baseline_score,

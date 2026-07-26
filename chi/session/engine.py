@@ -498,11 +498,14 @@ class SessionEngine:
 
     def _cmd_resume(self, args: str) -> list[str]:
         from chi.tui.picker import PickerUnavailable, fuzzy_select
-        from chi.userconfig import list_sessions
+        from chi.userconfig import list_sessions, prune_sessions
 
+        pruned = prune_sessions()
+        prefix = [f"(pruned {pruned} stale session(s) whose run directory is gone)"] \
+            if pruned else []
         sessions = list_sessions()
         if not sessions:
-            return ["no sessions recorded yet — /run to create one"]
+            return prefix + ["no sessions recorded yet — /run to create one"]
         if args.strip():
             matches = [s for s in sessions if s["run_id"] == args.strip()]
             if not matches:
@@ -530,7 +533,7 @@ class SessionEngine:
             self._direction = load_problem(run_dir / "workdir").score.direction
         except (FileNotFoundError, ValueError):
             self._direction = "minimize"
-        lines = [
+        lines = prefix + [
             f"resumed {chosen['run_id']} [{chosen.get('status', '?')}]"
             f" — started {chosen.get('started_at', '?')[:19]} in {chosen.get('cwd', '?')}",
         ]

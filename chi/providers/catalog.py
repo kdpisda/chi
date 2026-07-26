@@ -71,6 +71,20 @@ class ModelInfo:
     input_cost_per_m: float | None
     output_cost_per_m: float | None
     command: str | None = None
+    mode: str | None = None  # litellm mode ("chat", "embedding", …); None for CLIs
+    deprecated: bool = False  # past its litellm deprecation_date
+
+
+def _is_deprecated(deprecation_date: str | None) -> bool:
+    """True when litellm's deprecation_date (YYYY-MM-DD) is in the past."""
+    if not deprecation_date:
+        return False
+    from datetime import date, datetime
+
+    try:
+        return datetime.strptime(deprecation_date, "%Y-%m-%d").date() <= date.today()
+    except ValueError:
+        return False
 
 
 def _default_registry() -> dict:
@@ -150,12 +164,17 @@ def list_models(
     for provider in api_keys:
         for model in registry.get(provider, []):
             cost = cost_map.get(model, {})
+            mode = cost.get("mode")
+            if mode not in (None, "chat"):
+                continue  # embeddings/audio/image models don't belong in coder pickers
             in_cost = cost.get("input_cost_per_token")
             out_cost = cost.get("output_cost_per_token")
             out.append(ModelInfo(
                 id=model, provider=provider, kind="api",
                 input_cost_per_m=None if in_cost is None else in_cost * 1_000_000,
                 output_cost_per_m=None if out_cost is None else out_cost * 1_000_000,
+                mode=mode,
+                deprecated=_is_deprecated(cost.get("deprecation_date")),
             ))
     for cli, command in CLI_SUBSTRATES.items():
         if provider_keys is not None and cli not in provider_keys:

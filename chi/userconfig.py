@@ -30,10 +30,19 @@ def default_runs_root() -> Path:
     return data_dir() / "runs"
 
 
-def record_session(record: dict) -> None:
-    """Append one session record to the global registry (best-effort)."""
+def sessions_file() -> Path:
+    """Path of the global session registry."""
+    return data_dir() / "sessions.jsonl"
+
+
+def record_session(record: dict, sessions_path: Path | None = None) -> None:
+    """Append one session record to the registry (best-effort).
+
+    sessions_path lets callers pin the registry resolved on their own thread —
+    run threads must not re-resolve env-dependent paths mid-flight.
+    """
     try:
-        with open(data_dir() / "sessions.jsonl", "a") as f:
+        with open(sessions_path or sessions_file(), "a") as f:
             f.write(json.dumps(record, sort_keys=True) + "\n")
     except OSError:
         pass  # a registry hiccup must never kill a run
@@ -57,6 +66,21 @@ def list_sessions() -> list[dict]:
         if run_id:
             by_id[run_id] = {**by_id.get(run_id, {}), **record}
     return sorted(by_id.values(), key=lambda r: r.get("started_at", ""), reverse=True)
+
+
+def prune_sessions() -> int:
+    """Drop registry records whose run directory no longer exists; returns count."""
+    path = sessions_file()
+    if not path.exists():
+        return 0
+    sessions = list_sessions()
+    keep = [s for s in sessions if s.get("run_dir") and Path(s["run_dir"]).exists()]
+    dropped = len(sessions) - len(keep)
+    if dropped:
+        path.write_text(
+            "".join(json.dumps(s, sort_keys=True) + "\n" for s in reversed(keep))
+        )
+    return dropped
 
 
 def history_path() -> Path:
