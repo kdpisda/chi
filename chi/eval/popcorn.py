@@ -70,6 +70,15 @@ class PopcornBackend:
         return subprocess.run(argv, cwd=cwd, capture_output=True, text=True,
                               timeout=self.timeout_seconds)
 
+    def _gated_runner(self, argv: list[str], cwd: Path) -> subprocess.CompletedProcess:
+        """Run popcorn with CHI_GATED_SUBMIT=1 so the shim permits ranked submit."""
+        import os
+
+        env = dict(os.environ)
+        env["CHI_GATED_SUBMIT"] = "1"
+        return subprocess.run(argv, cwd=cwd, capture_output=True, text=True,
+                              timeout=self.timeout_seconds, env=env)
+
     def benchmark(self, candidate: Path) -> BenchResult:
         """Benchmark a candidate on B200 via popcorn — parallel-safe, ungated."""
         candidate = Path(candidate)
@@ -93,9 +102,12 @@ class PopcornBackend:
         candidate = Path(candidate)
         argv = shlex.split(self.submit_cmd.format(candidate=candidate.name))
 
+        # chi's own submit is the only gated path — it carries CHI_GATED_SUBMIT=1
+        runner = self._gated_runner if self._runner is self._default_runner else self._runner
+
         def _do() -> SubmitResult:
             try:
-                proc = self._runner(argv, candidate.parent)
+                proc = runner(argv, candidate.parent)
             except subprocess.TimeoutExpired:
                 return SubmitResult(False, "submission timed out")
             out = (proc.stdout or "") + "\n" + (proc.stderr or "")

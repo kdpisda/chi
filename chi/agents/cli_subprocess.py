@@ -72,10 +72,19 @@ class CliSubprocessAdapter(CoderAdapter):
         self.heartbeat()
         note = ""
         stdout = stderr = ""
+        # agents run with a shimmed PATH: they may benchmark via popcorn, but a
+        # ranked leaderboard submit is refused unless it comes through chi's gate
+        import os
+
+        from chi.eval.popcorn_shim import agent_env, install_shim
+
+        shim_dir = self.workdir / ".chi" / "bin"
+        install_shim(shim_dir)
+        env = agent_env(os.environ, shim_dir)
         try:
             proc = subprocess.run(
                 shlex.split(self.command.format(prompt_file=prompt_file.resolve())),
-                cwd=self.workdir, capture_output=True, text=True,
+                cwd=self.workdir, capture_output=True, text=True, env=env,
                 timeout=self.policies.iteration_timeout_seconds,
             )
             stdout, stderr = proc.stdout, proc.stderr

@@ -266,8 +266,11 @@ def eval_cmd(
     from chi.eval.runner import evaluate
 
     store, run_id = _open_run(run_dir)
-    problem = load_problem(run_dir / "workdir")
-    result = evaluate(problem, run_dir / "workdir", store=store, run_id=run_id, agent_id=agent)
+    # Multi-agent fleets give each coder workdir-{agent_id}; fall back to shared workdir.
+    agent_workdir = run_dir / f"workdir-{agent}"
+    workdir = agent_workdir if agent_workdir.is_dir() else run_dir / "workdir"
+    problem = load_problem(workdir if (workdir / "problem.yaml").exists() else run_dir / "workdir")
+    result = evaluate(problem, workdir, store=store, run_id=run_id, agent_id=agent)
     typer.echo(json.dumps(asdict(result)))
     raise typer.Exit(0 if result.correct else 2)
 
