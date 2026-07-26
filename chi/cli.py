@@ -97,9 +97,19 @@ def _providers_impl(
     all_providers: bool = typer.Option(False, "--all"),
     enable: str = typer.Option("", "--enable", help="Comma-separated providers to enable"),
     set_key: str = typer.Option("", "--set-key", help="Provider to store an API key for"),
+    probe: bool = typer.Option(False, "--probe",
+                               help="Actually run each installed CLI to confirm it works"),
 ) -> None:
     """Show provider status; enable providers or store an API key."""
     load_env()
+    if probe:
+        from chi.providers.substrate import probe_all
+
+        typer.echo("probing installed CLI substrates (runs each once)…")
+        for status in probe_all():
+            mark = "OK  " if status.ok else "FAIL"
+            typer.echo(f"{mark} {status.cli:<10} {status.detail}")
+        return
     if set_key:
         env_var = key_env_var(set_key)
         if env_var is None:

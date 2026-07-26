@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # NOTE: pin these to commit SHAs before relying on CI as a security control
+      # (get SHAs with: gh api repos/actions/checkout/commits/v4 --jq .sha).
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      # lockfile must be in sync with pyproject — a drifted lock is a supply-chain risk
+      - name: verify lockfile is current
+        run: uv lock --locked
+      - name: install
+        run: uv sync --extra dev
+      - name: test
+        run: uv run pytest -q
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: install pip-audit
+        run: uv tool install pip-audit
+      # fail on known vulnerabilities in resolved dependencies
+      - name: audit dependencies
+        run: uv export --format requirements-txt --no-emit-project | uv tool run pip-audit -r /dev/stdin
