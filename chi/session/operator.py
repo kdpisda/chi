@@ -55,6 +55,29 @@ TOOLS = [
         "description": "Attach to a past session by run_id.",
         "parameters": {"type": "object", "properties": {"run_id": {"type": "string"}},
                        "required": ["run_id"]}}},
+    {"type": "function", "function": {
+        "name": "explore",
+        "description": "Look at the user's machine (read-only): list a directory or"
+                       " read the head of a text file. Explore before asking the user.",
+        "parameters": {"type": "object", "properties": {"path": {"type": "string"}},
+                       "required": ["path"]}}},
+    {"type": "function", "function": {
+        "name": "fetch",
+        "description": "Fetch a URL (GET, text only, truncated) — competition pages,"
+                       " docs, problem definitions.",
+        "parameters": {"type": "object", "properties": {"url": {"type": "string"}},
+                       "required": ["url"]}}},
+    {"type": "function", "function": {
+        "name": "scaffold_problem",
+        "description": "Build a chi problem pack (problem.yaml + eval wrappers) by"
+                       " delegating to a full-tool setup agent, wrapping an existing"
+                       " evaluator found at `source`. Verifies with a baseline eval."
+                       " Use after exploring; then start_run the returned directory.",
+        "parameters": {"type": "object",
+                       "properties": {"name": {"type": "string"},
+                                      "source": {"type": "string"},
+                                      "notes": {"type": "string"}},
+                       "required": ["name", "source"]}}},
 ]
 
 SYSTEM_PROMPT = """You are chi (χ), an autoresearch harness operator in a terminal session.
@@ -62,8 +85,12 @@ You control real runs of coding agents against problems with programmatic evalua
 
 Rules:
 - Be concise; this is a terminal. No markdown headers, short lines.
-- When the user points at a problem directory or asks to optimize something that has
-  an evaluator, call start_run. If they name no directory, ask which one.
+- Discover before asking: use explore (dirs/files) and fetch (URLs) instead of
+  asking the user to run commands for you. Ask only for what you cannot find:
+  auth, budgets, intent.
+- start_run needs a directory containing problem.yaml. When the evaluator exists
+  but isn't wrapped yet, call scaffold_problem(name, source, notes) — a full-tool
+  setup agent writes and verifies the pack — then start_run its directory.
 - While a run is active, user direction about the work becomes a steer() call.
 - Answer state questions (scores, dead ends, status) from tools only — never invent
   numbers. If a tool errors, relay the error honestly.
@@ -163,8 +190,66 @@ def _progress_line(name: str, args: dict) -> str:
     return f"→ {name}({shown_args[:80]})" if shown_args else f"→ {name}()"
 
 
+def explore_path(path_str: str) -> str:
+    """Read-only look at the filesystem: directory listing or text-file head."""
+    from pathlib import Path
+
+    path = Path(path_str).expanduser()
+    if not path.exists():
+        return f"ERROR: {path} does not exist"
+    if path.is_dir():
+        try:
+            entries = sorted(path.iterdir(), key=lambda p: (p.is_file(), p.name))[:200]
+        except OSError as exc:
+            return f"ERROR: {exc}"
+        lines = [
+            f"{'d' if entry.is_dir() else 'f'} {entry.name}"
+            for entry in entries
+        ]
+        return f"dir {path} ({len(lines)} entries):\n" + "\n".join(lines)
+    try:
+        data = path.read_text(errors="replace")
+    except OSError as exc:
+        return f"ERROR: {exc}"
+    head = data[:8000]
+    return f"file {path} ({len(data)} bytes, showing {len(head)}):\n{head}"
+
+
+def fetch_url(url: str, opener: Callable | None = None) -> str:
+    """GET a URL and return de-tagged text, truncated. opener is a test seam."""
+    import re
+
+    if not url.startswith(("http://", "https://")):
+        return "ERROR: only http(s) URLs"
+    try:
+        if opener is not None:
+            raw = opener(url)
+        else:
+            import urllib.request
+
+            request = urllib.request.Request(url, headers={"User-Agent": "chi/0.1"})
+            with urllib.request.urlopen(request, timeout=20) as response:
+                raw = response.read(200_000).decode("utf-8", errors="replace")
+    except Exception as exc:  # DNS/TLS/HTTP each raise differently; report, don't die
+        return f"ERROR: fetch failed: {exc}"
+    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", raw, flags=re.S | re.I)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:8000] or "(empty page)"
+
+
 def dispatch_tool(engine: "SessionEngine", name: str, args: dict) -> tuple[str, list[str]]:
     """Run one operator tool; returns (output for the model, lines shown to the user)."""
+    if name == "explore":
+        return explore_path(str(args.get("path", ""))), []
+    if name == "fetch":
+        return fetch_url(str(args.get("url", "")), opener=engine.fetch_opener), []
+    if name == "scaffold_problem":
+        shown = engine.scaffold_problem(
+            str(args.get("name", "")), str(args.get("source", "")),
+            str(args.get("notes", "")),
+        )
+        return "\n".join(shown), shown
     if name == "start_run":
         shown = engine.launch_problem(str(args.get("problem_dir", "")),
                                       args.get("max_iterations"))
@@ -201,7 +286,11 @@ Reply with ONLY one JSON object, nothing else. Available actions:
 {{"action":"run_status"}}  {{"action":"get_champion"}}  {{"action":"query_ledger","text":"..."}}
 {{"action":"steer","text":"..."}}  {{"action":"stop_run"}}
 {{"action":"list_sessions"}}  {{"action":"resume_session","run_id":"..."}}
+{{"action":"explore","path":"..."}}          look at a directory or file (read-only)
+{{"action":"fetch","url":"..."}}             fetch a web page (text, truncated)
+{{"action":"scaffold_problem","name":"...","source":"...","notes":"..."}}  build+verify a problem pack from an existing evaluator
 Never invent scores or state — use the state below and the query actions.
+Discover with explore/fetch before asking the user anything they didn't volunteer.
 
 State: {state}
 Fleet: {fleet_summary}
@@ -277,32 +366,30 @@ class CliOperatorChat:
             text=text,
         )
 
+    MAX_ACTIONS = 4
+
     def turn(self, text: str) -> list[str]:
-        """One user turn: at most one action plus one follow-up reply."""
+        """One user turn: a chain of actions (explore → … → reply), streamed live."""
         self.history.append(("user", text))
-        self.engine.busy_note = f"thinking via {self.cli} CLI"
-        raw = self.runner(self._prompt(text))
-        action = _extract_json(raw)
-        if action is None or action.get("action") in (None, "reply"):
-            reply = (action or {}).get("text") or raw or "(no reply)"
-            self.history.append(("chi", reply))
-            return [reply]
-        name = str(action.pop("action"))
-        self.engine.busy_note = f"running {name}"
-        self.engine.emit_progress(_progress_line(name, action))
-        output, shown = dispatch_tool(self.engine, name, action)
-        for line in shown:
-            self.engine.emit_progress(f"  {line}")
-        self.history.append(("chi", f"[{name}] {output[:200]}"))
-        self.engine.busy_note = f"composing reply via {self.cli} CLI"
-        followup_raw = self.runner(
-            self._prompt(text, extra=f"chi executed {name}; result: {output[:500]}\n"
-                                     "Now respond to the user with a reply action.")
-        )
-        followup = _extract_json(followup_raw)
-        reply = (followup or {}).get("text") or followup_raw or "(done)"
-        self.history.append(("chi", reply))
-        return [reply]
+        extra = ""
+        for _ in range(self.MAX_ACTIONS + 1):
+            self.engine.busy_note = f"thinking via {self.cli} CLI"
+            raw = self.runner(self._prompt(text, extra=extra))
+            action = _extract_json(raw)
+            if action is None or action.get("action") in (None, "reply"):
+                reply = (action or {}).get("text") or raw or "(no reply)"
+                self.history.append(("chi", reply))
+                return [reply]
+            name = str(action.pop("action"))
+            self.engine.busy_note = f"running {name}"
+            self.engine.emit_progress(_progress_line(name, action))
+            output, shown = dispatch_tool(self.engine, name, action)
+            for line in shown:
+                self.engine.emit_progress(f"  {line}")
+            self.history.append(("chi", f"[{name}] {output[:200]}"))
+            extra += (f"chi executed {name}; result:\n{output[:1500]}\n"
+                      "Respond with another action, or a reply for the user.\n")
+        return ["(action limit reached for one turn — ask again to continue)"]
 
 
 def fleet_summary_text() -> str:

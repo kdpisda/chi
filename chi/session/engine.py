@@ -15,6 +15,43 @@ from chi.session.runner import RunHandle
 from chi.store.db import Store, utcnow
 
 
+def _scaffold_prompt(source: Path, target: Path, notes: str) -> str:
+    """Instructions for the setup agent. Built by concatenation: the contract text
+    contains literal {python}/{candidate}/{seed} placeholders that str.format
+    would mangle."""
+    contract = """
+You are setting up a chi problem pack in the CURRENT DIRECTORY.
+A chi problem pack contains:
+
+- problem.yaml with exactly this shape:
+    name: <slug>
+    description: <one paragraph>
+    candidate: candidate.py
+    entrypoints:
+      correctness: "{python} check.py {candidate} --seed {seed}"
+      benchmark: "{python} bench.py {candidate}"
+    score: { metric: <name>, direction: minimize, repeats: <k> }
+    correctness: { seeds: [<int>, <int>, <int>], tolerance: <float> }
+    timeout_seconds: <int>
+  ({python}, {candidate}, {seed} are literal placeholders chi fills in — keep them.)
+- check.py: exits 0 iff the candidate is correct for the given seed. WRAP the
+  existing evaluator from the source location (import it or call it as a
+  subprocess); never reimplement the reference math yourself.
+- bench.py: prints a JSON object {"score": <float>} as its LAST stdout line.
+- candidate.py: a working baseline implementation (correct; slow is fine).
+
+Verify your work by actually running, in this directory:
+  python3 check.py candidate.py --seed <first seed>    # must exit 0
+  python3 bench.py candidate.py                        # must print the JSON line
+Iterate until both commands work. Keep dependencies to what the source uses.
+Do not modify anything outside the current directory.
+"""
+    return (contract
+            + f"\nSource material to wrap (study it first): {source}"
+            + f"\nOperator notes: {notes or '(none)'}"
+            + f"\nCurrent directory (write everything here): {target}\n")
+
+
 def _short_error(exc: Exception) -> str:
     """Human-sized error text: strip provider JSON bodies, collapse whitespace."""
     text = f"{type(exc).__name__}: {exc}"
@@ -37,6 +74,8 @@ class SessionEngine:
         self.secret_fn: Callable | None = None  # frontends: (prompt) -> secret|None
         self.completion_fn: Callable | None = None  # test seam for the operator LLM
         self.cli_runner_fn: Callable | None = None  # test seam for the CLI operator
+        self.fetch_opener: Callable | None = None  # test seam for the fetch tool
+        self.setup_agent_fn: Callable | None = None  # test seam for scaffold_problem
         self.busy_note: str | None = None  # what a long operation is doing (frontends show it)
         self._progress: list[str] = []  # live activity lines, drained by poll_events
         self._progress_lock = threading.Lock()
@@ -603,6 +642,72 @@ class SessionEngine:
         return ["bye"]
 
     # -- free text -----------------------------------------------------------
+
+    def scaffold_problem(self, name: str, source: str, notes: str = "") -> list[str]:
+        """Delegate to a full-tool setup agent: wrap an existing evaluator into a
+        chi problem pack under the global data dir, then verify it end-to-end."""
+        import re
+
+        from chi.config import load_problem
+        from chi.userconfig import data_dir
+
+        slug = re.sub(r"[^a-z0-9_-]+", "-", name.lower()).strip("-") or "problem"
+        target = data_dir() / "problems" / slug
+        if (target / "problem.yaml").exists():
+            return [f"problem pack already exists: {target} — start_run it"]
+        src = Path(source).expanduser()
+        if not src.exists():
+            return [f"error: source {src} does not exist — explore first"]
+        runner = self.setup_agent_fn or self._default_setup_agent()
+        if runner is None:
+            return ["error: no setup agent available — install the claude or codex CLI"]
+        target.mkdir(parents=True, exist_ok=True)
+        self.busy_note = "setup agent building the problem pack (this can take minutes)"
+        self.emit_progress(f"→ setup agent scaffolding '{slug}' from {src}")
+        agent_report = runner(_scaffold_prompt(src, target, notes), target)
+        if not (target / "problem.yaml").exists():
+            return [f"error: setup agent finished without a problem.yaml in {target}",
+                    f"  agent said: {agent_report[:300]}"]
+        try:
+            problem = load_problem(target)
+        except (ValueError, FileNotFoundError) as exc:
+            return [f"error: scaffolded problem.yaml is invalid: {_short_error(exc)}"]
+        from chi.eval.runner import evaluate
+
+        self.busy_note = "verifying the scaffolded pack (baseline eval)"
+        self.emit_progress("→ baseline eval of the scaffolded pack")
+        result = evaluate(problem, target)
+        if not result.correct:
+            return [f"scaffolded {target}, but the baseline candidate FAILS correctness:"
+                    f" {result.detail[:200]}",
+                    "  re-scaffold with better notes, or fix the pack by hand"]
+        return [f"problem pack ready: {target}",
+                f"  baseline verified — score {result.score_value}"
+                f" ({problem.score.metric}, {problem.score.direction})",
+                "  start_run this directory to begin"]
+
+    def _default_setup_agent(self) -> Callable | None:
+        """A full-tool vendor-CLI session (claude/codex) jailed to the pack dir."""
+        import shutil
+        import subprocess
+
+        cli = next((c for c in ("claude", "codex") if shutil.which(c)), None)
+        if cli is None:
+            return None
+
+        def run(prompt: str, cwd: Path) -> str:
+            commands = {
+                "claude": ["claude", "-p", prompt, "--allowedTools", "Bash,Edit,Write,Read"],
+                "codex": ["codex", "exec", "--full-auto", prompt],
+            }
+            try:
+                proc = subprocess.run(commands[cli], cwd=cwd, capture_output=True,
+                                      text=True, timeout=1200)
+                return (proc.stdout or proc.stderr)[-2000:]
+            except subprocess.TimeoutExpired:
+                return "TIMEOUT: setup agent exceeded 20 minutes"
+
+        return run
 
     def record_operator_usage(self, result, context_limit: int | None) -> None:
         """Fold operator-LLM usage into the session telemetry (footer)."""
