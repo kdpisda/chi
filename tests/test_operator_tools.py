@@ -99,3 +99,38 @@ def test_scaffold_problem_missing_source(tmp_path: Path) -> None:
     engine = SessionEngine(runs_root=tmp_path / "runs")
     lines = engine.scaffold_problem("x", str(tmp_path / "missing"))
     assert lines[0].startswith("error: source")
+
+
+def test_explore_refuses_secret_files(tmp_path: Path) -> None:
+    (tmp_path / "credentials.env").write_text("ANTHROPIC_API_KEY=sk-secret")
+    (tmp_path / "my_token.txt").write_text("ghp_secret")
+    assert explore_path(str(tmp_path / "credentials.env")).startswith("REFUSED")
+    assert explore_path(str(tmp_path / "my_token.txt")).startswith("REFUSED")
+
+
+def test_fetch_blocks_internal_hosts() -> None:
+    from chi.session.operator import _blocked_host
+
+    assert _blocked_host("http://localhost:8080/x") == "localhost"
+    assert _blocked_host("http://127.0.0.1/x") == "127.0.0.1"
+    assert _blocked_host("http://169.254.169.254/latest/meta-data") == "169.254.169.254"
+    assert fetch_url("http://169.254.169.254/latest/meta-data/").startswith("ERROR")
+
+
+def test_cli_operator_forces_reply_at_action_cap(tmp_path: Path) -> None:
+    engine = SessionEngine(runs_root=tmp_path / "runs")
+    (tmp_path / "d").mkdir()
+    calls = {"n": 0}
+
+    def runner(prompt: str) -> str:
+        calls["n"] += 1
+        # a model that only ever wants to explore; must be forced to answer
+        if "used your action budget" in prompt:
+            return '{"action":"reply","text":"Here is what I found so far."}'
+        return json.dumps({"action": "explore", "path": str(tmp_path / "d")})
+
+    chat = CliOperatorChat(engine, "claude", runner=runner)
+    chat.MAX_ACTIONS = 3
+    lines = chat.turn("dig around")
+    assert lines == ["Here is what I found so far."]
+    assert not any("action limit reached" in line for line in lines)

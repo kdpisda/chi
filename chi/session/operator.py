@@ -101,7 +101,10 @@ Configured fleet: {fleet_summary}
 """
 
 MAX_MESSAGES = 40  # hard history cap: system + the most recent turns
-MAX_TOOL_ROUNDS = 8
+MAX_TOOL_ROUNDS = 24  # tool calls per turn before we force a wrap-up reply
+FORCE_REPLY = ("You have used your action budget for this turn. Do NOT call another"
+               " tool. Reply to the user now: summarize what you found and what you"
+               " recommend as the next step.")
 
 
 class OperatorChat:
@@ -175,7 +178,16 @@ class OperatorChat:
                     self.engine.emit_progress(f"  {line}")
                 self.messages.append({"role": "tool", "tool_call_id": tc.id,
                                       "content": output})
-        return ["(operator hit the tool-call cap for one turn — ask again)"]
+        # budget spent: one last call with tools withheld to force a real answer
+        self.engine.busy_note = f"wrapping up via {self.model}"
+        self.messages.append({"role": "user", "content": FORCE_REPLY})
+        self._trim()
+        result = chat(self.model, self.messages, budget=self.budget, role="operator",
+                      completion_fn=self.completion_fn)
+        self.engine.record_operator_usage(result, limit)
+        reply = result.text.strip() or "(no reply)"
+        self.messages.append({"role": "assistant", "content": reply})
+        return [reply]
 
     def _dispatch(self, name: str, args: dict) -> tuple[str, list[str]]:
         return dispatch_tool(self.engine, name, args)
@@ -190,13 +202,41 @@ def _progress_line(name: str, args: dict) -> str:
     return f"→ {name}({shown_args[:80]})" if shown_args else f"→ {name}()"
 
 
+def _plain(text: str) -> str:
+    """If the CLI wrapped its answer in a reply-action JSON, unwrap it."""
+    action = _extract_json(text)
+    if action and action.get("action") == "reply" and action.get("text"):
+        return str(action["text"])
+    return text.strip()
+
+
+# files chi refuses to read out to an LLM (secrets shouldn't leave the machine)
+_SECRET_NAMES = {"credentials.env", ".env", "id_rsa", "id_ed25519", ".netrc",
+                 ".pgpass", ".htpasswd"}
+_SECRET_HINTS = ("secret", "token", "apikey", "api_key", "private_key", "credential")
+
+
+def _looks_secret(path) -> bool:
+    name = path.name.lower()
+    if name in _SECRET_NAMES:
+        return True
+    return any(hint in name for hint in _SECRET_HINTS)
+
+
 def explore_path(path_str: str) -> str:
-    """Read-only look at the filesystem: directory listing or text-file head."""
+    """Read-only look at the filesystem: directory listing or text-file head.
+
+    Refuses to read obvious secret files — their contents would be sent to the
+    operator model (and thus off-machine for API brains).
+    """
     from pathlib import Path
 
     path = Path(path_str).expanduser()
     if not path.exists():
         return f"ERROR: {path} does not exist"
+    if path.is_file() and _looks_secret(path):
+        return (f"REFUSED: {path.name} looks like a secret; chi won't read credentials"
+                " out to the model. Ask the user directly if you need this.")
     if path.is_dir():
         try:
             entries = sorted(path.iterdir(), key=lambda p: (p.is_file(), p.name))[:200]
@@ -215,12 +255,41 @@ def explore_path(path_str: str) -> str:
     return f"file {path} ({len(data)} bytes, showing {len(head)}):\n{head}"
 
 
+def _blocked_host(url: str) -> str | None:
+    """Return the host if it resolves to a private/loopback/link-local address (SSRF)."""
+    import ipaddress
+    import socket
+    import urllib.parse
+
+    host = urllib.parse.urlparse(url).hostname
+    if not host:
+        return "(no host)"
+    if host in ("localhost", "localhost.localdomain"):
+        return host
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        return None  # let the actual fetch surface DNS errors
+    for info in infos:
+        try:
+            addr = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            continue
+        if (addr.is_private or addr.is_loopback or addr.is_link_local
+                or addr.is_reserved or addr.is_multicast):
+            return host
+    return None
+
+
 def fetch_url(url: str, opener: Callable | None = None) -> str:
     """GET a URL and return de-tagged text, truncated. opener is a test seam."""
     import re
 
     if not url.startswith(("http://", "https://")):
         return "ERROR: only http(s) URLs"
+    blocked = _blocked_host(url)
+    if blocked:
+        return f"ERROR: refusing to fetch {blocked} (internal/metadata address)"
     try:
         if opener is not None:
             raw = opener(url)
@@ -366,18 +435,21 @@ class CliOperatorChat:
             text=text,
         )
 
-    MAX_ACTIONS = 4
+    MAX_ACTIONS = 16
 
     def turn(self, text: str) -> list[str]:
         """One user turn: a chain of actions (explore → … → reply), streamed live."""
         self.history.append(("user", text))
         extra = ""
-        for _ in range(self.MAX_ACTIONS + 1):
-            self.engine.busy_note = f"thinking via {self.cli} CLI"
-            raw = self.runner(self._prompt(text, extra=extra))
+        for step in range(self.MAX_ACTIONS + 1):
+            over_budget = step == self.MAX_ACTIONS
+            self.engine.busy_note = (f"wrapping up via {self.cli} CLI" if over_budget
+                                     else f"thinking via {self.cli} CLI")
+            raw = self.runner(self._prompt(text, extra=extra + (FORCE_REPLY + "\n"
+                                                                if over_budget else "")))
             action = _extract_json(raw)
-            if action is None or action.get("action") in (None, "reply"):
-                reply = (action or {}).get("text") or raw or "(no reply)"
+            if over_budget or action is None or action.get("action") in (None, "reply"):
+                reply = (action or {}).get("text") or _plain(raw) or "(no reply)"
                 self.history.append(("chi", reply))
                 return [reply]
             name = str(action.pop("action"))
@@ -389,7 +461,7 @@ class CliOperatorChat:
             self.history.append(("chi", f"[{name}] {output[:200]}"))
             extra += (f"chi executed {name}; result:\n{output[:1500]}\n"
                       "Respond with another action, or a reply for the user.\n")
-        return ["(action limit reached for one turn — ask again to continue)"]
+        return ["(no reply)"]  # unreachable: the over_budget branch always returns
 
 
 def fleet_summary_text() -> str:
