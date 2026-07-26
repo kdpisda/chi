@@ -168,3 +168,12 @@ def test_fleet_auto_submits_improvement(tmp_path, monkeypatch) -> None:
     autos = [e for e in list_events(store, summary.run_id, "STATUS")
              if '"submitted": true' in e["payload_json"]]
     assert len(autos) == 1
+
+
+def test_margin_clamped_against_guard_defeat(tmp_path) -> None:
+    # an operator setting margin 0 (or negative) must not defeat the noise guard
+    cand = tmp_path / "c.py"; cand.write_text("x")
+    sub, backend = _sub(tmp_path, direction="minimize", margin_pct=0.0, baseline=1000.0)
+    assert sub.margin_pct >= 0.1  # clamped
+    assert not sub.consider(cand, 999.9, correct=True).submitted  # 0.01% held
+    assert backend.submitted == []

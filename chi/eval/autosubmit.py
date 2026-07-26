@@ -43,7 +43,9 @@ class AutoSubmitter:
     ) -> None:
         self.backend = backend
         self.direction = direction
-        self.margin_pct = margin_pct
+        # clamp the margin to a sane floor: a 0/negative margin would let noise or
+        # regressions submit and drop the user's real rank (rank-protection rail)
+        self.margin_pct = max(float(margin_pct), 0.1)
         self.enabled = enabled
         self._last = baseline  # last submitted score (seed with current LB best)
         self._lock = threading.Lock()

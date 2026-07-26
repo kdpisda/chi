@@ -45,6 +45,21 @@ Verify your work by actually running, in this directory:
   python3 bench.py candidate.py                        # must print the JSON line
 Iterate until both commands work. Keep dependencies to what the source uses.
 Do not modify anything outside the current directory.
+
+REMOTE / LEADERBOARD BENCHMARKING (important):
+If the source is a GPU MODE / popcorn competition (task.yml with a leaderboard
+`name:` and `gpus:`, or the operator notes say benchmarking is via popcorn-cli),
+then the real benchmark and ranking happen REMOTELY — do NOT try to run the GPU
+kernel locally. Instead, in problem.yaml ALSO set:
+    leaderboard: <the task.yml name, e.g. cholesky>
+    benchmark_cmd: "popcorn-cli {candidate} --leaderboard <name> --gpu <GPU> --mode benchmark --no-tui"
+    submit_cmd:    "popcorn-cli {candidate} --leaderboard <name> --gpu <GPU> --mode leaderboard --no-tui"
+    current_best:  <the user's current best score if known, else omit>
+In that case, bench.py should invoke the benchmark_cmd via popcorn-cli (parse the
+geomean/score from its output) rather than timing locally, and candidate.py must be
+a valid popcorn submission file (the exact `custom_kernel`/entry signature the
+leaderboard's reference.py expects). check.py may still verify correctness locally
+against reference.py on small inputs if the reference is pure-PyTorch.
 """
     return (contract
             + f"\nSource material to wrap (study it first): {source}"
@@ -656,6 +671,14 @@ class SessionEngine:
         data = yaml.safe_load(target.read_text())
         if on and not data.get("leaderboard"):
             return ["this problem has no leaderboard configured — auto-submit needs one"]
+        if on and self.ask_fn is not None:
+            # the LLM can't silently arm live-leaderboard submission — confirm once
+            choice = self._ask(
+                f"Enable AUTONOMOUS submission to {data['leaderboard']}? chi will then"
+                " submit real improvements itself, without asking each time.",
+                [("enable", "Enable auto-submit"), ("cancel", "Keep it off")])
+            if choice != "enable":
+                return ["auto-submit left OFF"]
         data["auto_submit"] = bool(on)
         if current_best is not None:
             data["current_best"] = float(current_best)
