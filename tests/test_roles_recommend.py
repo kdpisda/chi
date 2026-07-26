@@ -45,7 +45,8 @@ def test_coders_from_picks_cli_variant() -> None:
 
 def test_recommend_setup_prefers_cli_plus_strong_api() -> None:
     coders, roles, summary = recommend_setup(PROVIDERS, MODELS)
-    assert coders[0].model == "claude" and coders[0].adapter == "cli_subprocess"
+    # claude coders use json_stream (structured visibility + real usage)
+    assert coders[0].model == "claude" and coders[0].adapter == "json_stream"
     assert coders[1].model == "anthropic/claude-opus-4-8"  # highest input cost = strongest
     assert roles["orchestrator"] == "anthropic/claude-opus-4-8"
     assert roles["critic"] == "deepseek/deepseek-chat"  # cheapest preferred provider

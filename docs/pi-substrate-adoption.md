@@ -27,7 +27,13 @@ Every one of 1–4 traces to the same root cause: **chi drives sub-agents crudel
 
 ## What to adopt from pi (ranked by leverage against the above)
 
-### 1. Drive agents through a typed JSON protocol, not prompt-file + stdout-grep — **HIGHEST LEVERAGE**
+### 1. Drive agents through a typed JSON protocol, not prompt-file + stdout-grep — **HIGHEST LEVERAGE — ✅ IMPLEMENTED (2026-07-27)**
+
+**Status: done and merged.** `chi/agents/json_stream.py` (`JsonStreamCliAdapter`) drives claude via `--output-format stream-json --verbose`, parses the typed NDJSON stream, records every agent tool call as a chi event, reads real cost/tokens from the `result` event, and records a safety event when an agent runs a submission binary directly (ranked-detection mirrors the shim). Pure parser unit-tested; verified against **live** claude output (real cost/token counts). `recommend_setup` now uses `json_stream` for claude coders by default. codex/grok stay on `cli_subprocess` until their JSON-stream modes are verified against reality.
+
+Original analysis follows.
+
+
 
 **pi mechanism:** `pi --mode json -p` turns the agent into an NDJSON-streaming subprocess with a typed event vocabulary (`message_end`, `tool_result_end`, usage, etc.). pi's subagents, its `server`/`ipc` control plane, and its evals all compose over this one primitive (`packages/coding-agent/src/modes/rpc/`, the subagent example, `packages/server/src/ipc/`).
 

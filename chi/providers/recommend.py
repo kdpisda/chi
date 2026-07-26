@@ -67,8 +67,10 @@ def recommend_setup(
     summary: list[str] = []
 
     if "claude" in ready_clis:
+        # claude supports --output-format stream-json, so use the json_stream
+        # adapter: chi sees every tool call and gets real cost/token accounting
         coders.append(CoderCfg(id=f"c{len(coders) + 1}", model="claude",
-                               adapter="cli_subprocess", command=cli_command("claude")))
+                               adapter="json_stream", command=cli_command("claude")))
     elif "codex" in ready_clis:
         coders.append(CoderCfg(id=f"c{len(coders) + 1}", model="codex",
                                adapter="cli_subprocess", command=cli_command("codex")))
