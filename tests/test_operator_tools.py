@@ -134,3 +134,62 @@ def test_cli_operator_forces_reply_at_action_cap(tmp_path: Path) -> None:
     lines = chat.turn("dig around")
     assert lines == ["Here is what I found so far."]
     assert not any("action limit reached" in line for line in lines)
+
+
+def test_submit_leaderboard_requires_approval_and_champion(tmp_path: Path) -> None:
+    import yaml
+
+    from chi.config import CoderCfg
+    from chi.userconfig import UserConfig, save_user_config
+
+    # a problem pack with a leaderboard configured
+    pack = tmp_path / "pack"
+    shutil.copytree(PROBLEM_DIR, pack)
+    manifest = yaml.safe_load((pack / "problem.yaml").read_text())
+    manifest["leaderboard"] = "gpumode-776"
+    manifest["benchmark_cmd"] = "popcorn-cli bench {candidate}"
+    manifest["submit_cmd"] = "popcorn-cli submit {candidate}"
+    (pack / "problem.yaml").write_text(yaml.safe_dump(manifest))
+
+    script = tmp_path / "s.json"
+    script.write_text(json.dumps([GOOD]))
+    save_user_config(UserConfig(default_coders=[
+        CoderCfg(id="c1", model="scripted", adapter="scripted", script=str(script))
+    ]))
+    engine = SessionEngine(runs_root=tmp_path / "runs")
+    engine.launch_problem(str(pack), max_iterations=1)
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        if any(l.startswith("run finished") for l in engine.poll_events()):
+            break
+        time.sleep(0.05)
+
+    # declined approval → not submitted
+    engine.ask_fn = lambda q, options: "hold"
+    assert any("held" in line for line in engine.submit_leaderboard("1.5% win"))
+
+    # approved → routes to the (mocked) submission path
+    engine.ask_fn = lambda q, options: "submit"
+    engine.submit_fn = lambda champ, problem: [f"✓ submitted {champ['score_value']}"]
+    lines = engine.submit_leaderboard("real improvement")
+    assert any(line.startswith("✓ submitted") for line in lines)
+
+
+def test_submit_leaderboard_no_leaderboard_configured(tmp_path: Path) -> None:
+    from chi.config import CoderCfg
+    from chi.userconfig import UserConfig, save_user_config
+
+    script = tmp_path / "s.json"
+    script.write_text(json.dumps([GOOD]))
+    save_user_config(UserConfig(default_coders=[
+        CoderCfg(id="c1", model="scripted", adapter="scripted", script=str(script))
+    ]))
+    engine = SessionEngine(runs_root=tmp_path / "runs")
+    engine.launch_problem(str(PROBLEM_DIR), max_iterations=1)
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        if any(l.startswith("run finished") for l in engine.poll_events()):
+            break
+        time.sleep(0.05)
+    lines = engine.submit_leaderboard("x")
+    assert any("no leaderboard configured" in line for line in lines)

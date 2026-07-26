@@ -76,6 +76,7 @@ class SessionEngine:
         self.cli_runner_fn: Callable | None = None  # test seam for the CLI operator
         self.fetch_opener: Callable | None = None  # test seam for the fetch tool
         self.setup_agent_fn: Callable | None = None  # test seam for scaffold_problem
+        self.submit_fn: Callable | None = None  # test seam for leaderboard submission
         self.busy_note: str | None = None  # what a long operation is doing (frontends show it)
         self._progress: list[str] = []  # live activity lines, drained by poll_events
         self._progress_lock = threading.Lock()
@@ -642,6 +643,56 @@ class SessionEngine:
         return ["bye"]
 
     # -- free text -----------------------------------------------------------
+
+    def submit_leaderboard(self, reason: str) -> list[str]:
+        """Approval-gated, mutex-serialized leaderboard submission of the champion.
+
+        chi never submits on its own: it asks the operator, then hands off to the
+        popcorn backend's SubmissionGate (one at a time, rationed).
+        """
+        run_dir = self._active_or_last_run_dir()
+        if run_dir is None:
+            return ["no run/champion to submit — /run or /resume first"]
+        from chi.config import load_problem
+        from chi.store import ledger
+
+        try:
+            problem = load_problem(run_dir / "workdir")
+        except (FileNotFoundError, ValueError):
+            return ["error: no problem in this run's workdir"]
+        if not getattr(problem, "leaderboard", None):
+            return ["this problem has no leaderboard configured — nothing to submit to"]
+        store = Store.open(run_dir)
+        runs = store.query("SELECT run_id FROM runs")
+        champ = ledger.champion(store, runs[0]["run_id"], self._direction) if runs else None
+        if champ is None:
+            return ["no champion yet — benchmark a candidate that improves first"]
+        if self.ask_fn is None:
+            return ["submission needs approval, but no way to ask here — use the"
+                    " interactive UI or a /submit command"]
+        choice = self._ask(
+            f"Submit champion ({champ['score_value']}) to {problem.leaderboard}?\n"
+            f"Reason: {reason}\nThis spends a submission and changes your public rank.",
+            [("submit", "Submit to the live leaderboard"),
+             ("hold", "Hold — don't submit")],
+        )
+        if choice != "submit":
+            return ["held — not submitted"]
+        if self.submit_fn is not None:  # test seam
+            return self.submit_fn(champ, problem)
+        from chi.eval.popcorn import PopcornBackend
+
+        backend = PopcornBackend(
+            problem.leaderboard, problem.benchmark_cmd or "", problem.submit_cmd or "",
+        )
+        self.busy_note = "submitting to the leaderboard (serialized)"
+        result = backend.submit(run_dir / "workdir" / problem.candidate)
+        if result.rationed:
+            return [f"⏳ {result.detail} — the gate holds submissions to one per window"]
+        if not result.ok:
+            return [f"submission failed: {result.detail}"]
+        return [f"✓ submitted champion {champ['score_value']} to {problem.leaderboard}",
+                f"  {result.detail}"]
 
     def scaffold_problem(self, name: str, source: str, notes: str = "") -> list[str]:
         """Delegate to a full-tool setup agent: wrap an existing evaluator into a

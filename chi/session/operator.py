@@ -68,6 +68,16 @@ TOOLS = [
         "parameters": {"type": "object", "properties": {"url": {"type": "string"}},
                        "required": ["url"]}}},
     {"type": "function", "function": {
+        "name": "submit_leaderboard",
+        "description": "Submit the current champion to the live leaderboard via"
+                       " popcorn-cli. SERIALIZED (one at a time) and rationed;"
+                       " REQUIRES the user's approval — it spends their submission"
+                       " budget and changes their public rank. Only after a"
+                       " benchmark shows a real improvement.",
+        "parameters": {"type": "object",
+                       "properties": {"reason": {"type": "string"}},
+                       "required": ["reason"]}}},
+    {"type": "function", "function": {
         "name": "scaffold_problem",
         "description": "Build a chi problem pack (problem.yaml + eval wrappers) by"
                        " delegating to a full-tool setup agent, wrapping an existing"
@@ -331,6 +341,9 @@ def dispatch_tool(engine: "SessionEngine", name: str, args: dict) -> tuple[str, 
         return explore_path(str(args.get("path", ""))), []
     if name == "fetch":
         return fetch_url(str(args.get("url", "")), opener=engine.fetch_opener), []
+    if name == "submit_leaderboard":
+        shown = engine.submit_leaderboard(str(args.get("reason", "")))
+        return "\n".join(shown), shown
     if name == "scaffold_problem":
         shown = engine.scaffold_problem(
             str(args.get("name", "")), str(args.get("source", "")),

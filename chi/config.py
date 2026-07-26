@@ -78,6 +78,13 @@ class ProblemConfig(BaseModel):
     correctness: CorrectnessCfg
     timeout_seconds: int = 60
     dir: Path | None = None
+    # authoritative tier: an external leaderboard reached via popcorn-cli.
+    # benchmark = parallel proxy scoring; submit = serialized, rationed, approved.
+    leaderboard: str | None = None
+    benchmark_cmd: str | None = None  # popcorn-cli benchmark; template with {candidate}
+    submit_cmd: str | None = None  # popcorn-cli leaderboard submit
+    ration_per_window: int = 1
+    ration_window_seconds: float = 1800.0
 
 
 def load_fleet(path: Path) -> FleetConfig:
