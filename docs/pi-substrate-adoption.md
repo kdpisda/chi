@@ -90,6 +90,19 @@ Do not dilute these; pi has none of them and they are the reason chi exists:
 - Two-tier eval with **gated + rationed + auto** submission and the rank-protection rails.
 - The **eval → improve → submit** autoresearch loop itself.
 
+## Implementation status (2026-07-27)
+
+| Item | Status |
+|---|---|
+| 1. JSON-protocol agent adapter | ✅ **Done** — `chi/agents/json_stream.py`, verified live, default for claude coders |
+| 2. Mediated submission via sandbox / DI-operations | ⏳ **Partial** — the popcorn shim mediates ranked submission and the json_stream adapter *records* direct attempts; the real per-agent sandbox (the proper fix) is the top remaining item and needs a dedicated build (a credential-jail-via-env slice was attempted and reverted as unsound — see `chi/eval/popcorn_shim.py`) |
+| 3. Substrate capability layer | ✅ **Done** — `chi/providers/substrate.py`, `chi providers --probe`; catches codex-account/grok-syntax failures pre-run |
+| 4. Native-modifier TUI fix | ✅ **Addressed via framework** — Textual 8's Kitty keyboard protocol reports `shift+enter` natively on capable terminals; existing binding fires, Ctrl+J / trailing-`\` are universal fallbacks. No native module needed |
+| 5. Supply-chain hardening | ✅ **Done (first pass)** — CI with lockfile-in-sync + `pip-audit`; `SECURITY.md` threat model. Remaining: SHA-pin actions, dep-review gate, min-release-age |
+| 6. Minimal-core + extension model | ⬜ **Not started** — large refactor; do last |
+
+**Reached:** the tractable, high-value majority (1, 3, 4, 5) is implemented and tested; the highest-leverage item (1) is done and verified live. The two genuinely-large architectural items remain: **item 2 (real per-agent sandbox)** — the most important, safety-critical, deserves its own focused session — and **item 6 (extension model)** — a broad refactor best done after the rest stabilizes.
+
 ## Proposed sequencing
 
 1. **JSON-protocol agent adapter** (item 1) — highest leverage; dissolves failures #1–#4. Prototype against the claude CLI's `stream-json` first, then grok/codex.

@@ -73,7 +73,13 @@ def install_shim(bin_dir: Path) -> Path | None:
 
 def agent_env(base_env: dict, bin_dir: Path, real_popcorn: str | None = None) -> dict:
     """Env for an agent subprocess: shim first on PATH, real popcorn recorded,
-    and the gated-submit flag explicitly OFF so agents can never rank-submit."""
+    and the gated-submit flag explicitly OFF so agents can never rank-submit.
+
+    Note: we do NOT strip credentials here — popcorn auth is file-based (not env,
+    so the shim, not the env, is the submission control) and the coder CLIs need
+    their own auth to function. A hard credential boundary requires a real
+    sandbox (item 2 in docs/pi-substrate-adoption.md), not env-stripping.
+    """
     real = real_popcorn or shutil.which("popcorn-cli") or shutil.which("popcorn") or ""
     env = dict(base_env)
     env["PATH"] = f"{Path(bin_dir)}{os.pathsep}{env.get('PATH', '')}"
