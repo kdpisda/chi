@@ -52,8 +52,8 @@ If the source is a GPU MODE / popcorn competition (task.yml with a leaderboard
 then the real benchmark and ranking happen REMOTELY — do NOT try to run the GPU
 kernel locally. Instead, in problem.yaml ALSO set:
     leaderboard: <the task.yml name, e.g. cholesky>
-    benchmark_cmd: "popcorn-cli {candidate} --leaderboard <name> --gpu <GPU> --mode benchmark --no-tui"
-    submit_cmd:    "popcorn-cli {candidate} --leaderboard <name> --gpu <GPU> --mode leaderboard --no-tui"
+    benchmark_cmd: "popcorn-cli submit {candidate} --leaderboard <name> --gpu <GPU> --mode benchmark --no-tui"
+    submit_cmd:    "popcorn-cli submit {candidate} --leaderboard <name> --gpu <GPU> --mode leaderboard --no-tui"
     current_best:  <the user's current best score if known, else omit>
 In that case, bench.py should invoke the benchmark_cmd via popcorn-cli (parse the
 geomean/score from its output) rather than timing locally, and candidate.py must be

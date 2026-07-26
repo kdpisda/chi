@@ -64,3 +64,14 @@ def test_agent_env_strips_gated_flag(tmp_path: Path) -> None:
     assert "CHI_GATED_SUBMIT" not in env
     assert env["PATH"].startswith(str(tmp_path / "bin"))
     assert env["CHI_REAL_POPCORN"] == "/x/popcorn"
+
+
+def test_shim_allows_benchmark_via_submit_subcommand(tmp_path: Path, monkeypatch) -> None:
+    # popcorn uses `submit <file> --mode benchmark` for benchmarking too — must pass
+    real = _fake_real_popcorn(tmp_path)
+    monkeypatch.setattr("shutil.which", lambda n: str(real))
+    shim_dir = tmp_path / "bin"
+    install_shim(shim_dir)
+    proc = _run_shim(shim_dir, real, ["submit", "cand.py", "--leaderboard", "cholesky",
+                                      "--gpu", "B200", "--mode", "benchmark"], gated=False)
+    assert proc.returncode == 0 and "REAL popcorn ran" in proc.stdout

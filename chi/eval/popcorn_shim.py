@@ -27,14 +27,20 @@ args = sys.argv[1:]
 
 
 def _is_ranked_submit(argv):
-    # `--mode leaderboard` anywhere, or the bare `submit` subcommand
+    # popcorn uses the `submit` subcommand for ALL modes; --mode distinguishes
+    # ranked (leaderboard) from unranked (benchmark/test/profile). Block ONLY
+    # ranked: an explicit `--mode leaderboard`, or a bare `submit` with no mode
+    # (whose default may rank). Benchmark/test/profile pass through freely.
+    mode = None
     for i, a in enumerate(argv):
-        if a == "--mode" and i + 1 < len(argv) and argv[i + 1] == "leaderboard":
-            return True
-        if a.startswith("--mode=") and a.split("=", 1)[1] == "leaderboard":
-            return True
-    if argv and argv[0] == "submit":
+        if a == "--mode" and i + 1 < len(argv):
+            mode = argv[i + 1]
+        elif a.startswith("--mode="):
+            mode = a.split("=", 1)[1]
+    if mode == "leaderboard":
         return True
+    if argv and argv[0] == "submit" and mode is None:
+        return True  # bare `submit` with no mode — assume ranked, block to be safe
     return False
 
 
