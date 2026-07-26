@@ -94,6 +94,35 @@ Do not dilute these; pi has none of them and they are the reason chi exists:
 
 Each is independently shippable and testable behind chi's existing `Agent`/backend protocols; none require touching the orchestration layer.
 
+## pi-chat findings (their Slack/chat + workflow layer)
+
+Analyzed `earendil-works/pi-chat` for orchestration patterns. **Headline: it confirms chi's core value is genuinely differentiated.** pi-chat is *not* a multi-agent coordinator — it's a **single-agent-per-conversation chat bridge**: one pi agent per channel, strictly serial per-conversation job queue, and multi-channel "scale" is just `tmux` launching N independent pi processes that share nothing but the filesystem. There is **no blackboard, no message bus, no task delegation, no result merging** — its only cross-agent surface is a read-only 15s status heartbeat (observability, not coordination). So neither pi nor pi-chat has chi's fleet/blackboard/negative-ledger/eval-loop; that remains uniquely chi's.
+
+But pi-chat has **two mechanisms that are the clean answer to problems chi hit today**, plus reusable durability patterns:
+
+### 8. Real sandboxing: one micro-VM per agent (the answer to the agent-bypass problem)
+
+**pi-chat mechanism:** every conversation runs in a **Gondolin micro-VM** (QEMU/Alpine); the agent's `read/write/edit/bash` tools execute *inside* the VM (`src/gondolin.ts`), host `/workspace` and `/shared` mounted in. The agent has a shell — but it's a *sandboxed* shell with no access to host credentials or host processes.
+
+**Why chi needs this:** today chi's CLI agents had a *host* shell and fired `popcorn-cli` directly, bypassing chi's submission gate and touching real credentials/quota. My PATH-shim patch was a workaround for the absence of a sandbox. The correct fix is pi-chat's model: **run agents in a sandbox where they physically cannot reach the submission credential or the host popcorn binary** — chi mediates all privileged actions (submission) at the boundary. This subsumes the shim.
+
+### 9. HTTP-layer secret injection (agents act with credentials without seeing them)
+
+**pi-chat mechanism:** `createHttpHooks` (via Gondolin) swaps secrets into outbound requests to allowed hosts *at the HTTP layer* — the agent triggers an authenticated call but never sees the raw secret (`src/gondolin.ts:29-44`). Plus an RSA-OAEP + AES-256-GCM out-of-band secret-exchange (`src/secrets.ts`).
+
+**Adopt in chi:** the general pattern for "let an agent *use* a capability (submit, call an API) without holding the credential." A submission proxy that injects the popcorn auth only for chi-approved, gated submits is the credential-safe version of mediated submission (item 2).
+
+### 10. Event-sourced durable log with replay boundaries (durability/resume)
+
+**pi-chat mechanism:** an append-only JSONL log per conversation (`src/log.ts`), with a **consumption boundary** = the last `job_completed` record. Failed jobs **do not advance the boundary**, so a crashed turn's work auto-replays — clean **at-least-once** semantics (`src/runtime.ts:248-257`). Plus an **arming watermark** (`armAfterCurrentTail`) that distinguishes catch-up/history from genuinely-new work on reconnect, and a **PID-aware file lock** with dead-owner recovery.
+
+**Adopt in chi:** chi's store is event-based but its task lifecycle doesn't have this crisp replay semantic. For durable, resumable multi-hour fleet runs (exactly what we just tried), the "boundary = last completed; failures re-run; watermark to avoid re-triggering on resume" pattern is worth lifting. chi's SQLite claim/lease is already stronger than the file lock, so keep that.
+
+### Also worth noting (smaller)
+- **Adapter interface** (`LiveConnection` in `src/live/`) — a clean narrow template for pluggable source/sink connectors (chat, search APIs, doc stores). Discord uses a gateway socket, Telegram long-polls — both webhook-free.
+- **Prompt = delta slice, not full history** — feed the agent only records since the last completed turn (token-efficient; maps to "new evidence since last synthesis").
+- **Corrective to item 1:** pi-chat does *not* demonstrate the `--mode json` subprocess protocol — it integrates as an in-process *extension* and fans out via tmux. The json-mode recommendation still stands (from pi-core's rpc mode + subagent example), but note the in-process extension model is pi's other integration path.
+
 ## Appendix: source pointers (in the cloned `earendil-works/pi`)
 
 - json/rpc mode + subprocess protocol: `packages/coding-agent/src/modes/rpc/`, `packages/server/src/ipc/`, subagent example at `packages/coding-agent/examples/extensions/subagent/`.
