@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 class CoderCfg(BaseModel):
     id: str = "coder-1"
     model: str
-    adapter: Literal["litellm_loop", "cli_subprocess", "scripted"] = "litellm_loop"
+    adapter: Literal["litellm_loop", "cli_subprocess", "json_stream", "scripted"] = "litellm_loop"
     command: str | None = None  # cli_subprocess: template with {prompt_file}
     script: str | None = None  # scripted: path to JSON list of candidate sources
     strategy: str | None = None  # the distinct approach this agent explores

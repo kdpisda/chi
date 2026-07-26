@@ -58,6 +58,12 @@ def _make_adapter(
         if not coder.command:
             raise ValueError("cli_subprocess adapter requires 'command' in the coder config")
         return CliSubprocessAdapter(**kwargs)
+    if coder.adapter == "json_stream":
+        if not coder.command:
+            raise ValueError("json_stream adapter requires 'command' in the coder config")
+        from chi.agents.json_stream import JsonStreamCliAdapter
+
+        return JsonStreamCliAdapter(**kwargs)
     raise ValueError(f"unknown adapter {coder.adapter}")
 
 
