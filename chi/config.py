@@ -13,6 +13,7 @@ class CoderCfg(BaseModel):
     adapter: Literal["litellm_loop", "cli_subprocess", "scripted"] = "litellm_loop"
     command: str | None = None  # cli_subprocess: template with {prompt_file}
     script: str | None = None  # scripted: path to JSON list of candidate sources
+    strategy: str | None = None  # the distinct approach this agent explores
 
 
 class BudgetsCfg(BaseModel):

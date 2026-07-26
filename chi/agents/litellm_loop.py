@@ -93,6 +93,7 @@ class LiteLLMLoopAdapter(CoderAdapter):
     def run_iteration(self, seed: SeedContext) -> IterationOutcome:
         """One improvement session: chat until no tool calls or the cap hits."""
         self.ack_steering(seed.steering_hash)
+        self._strategy = seed.strategy
         self.heartbeat()
         dead = "\n".join(
             f"- [{d['approach_class']}] {d['summary']} (scope: {d['ruled_out_scope']})"
@@ -172,7 +173,8 @@ class LiteLLMLoopAdapter(CoderAdapter):
             return "written", False
         if name == "run_eval":
             result = evaluate(self.problem, self.workdir, store=self.store,
-                              run_id=self.run_id, agent_id=self.agent_id)
+                              run_id=self.run_id, agent_id=self.agent_id,
+                              strategy=getattr(self, "_strategy", None))
             from dataclasses import asdict
 
             return json.dumps(asdict(result)), True

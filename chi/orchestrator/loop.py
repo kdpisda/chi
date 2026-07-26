@@ -61,6 +61,83 @@ def _make_adapter(
     raise ValueError(f"unknown adapter {coder.adapter}")
 
 
+def _run_coder(coder, workdir, task_id, strategy, store, run_id, problem, budget,
+               policies, steering, baseline_score, stop_event, completion_fn,
+               coder_status) -> None:
+    """One coder agent's iteration loop, in its own worktree (runs in a thread)."""
+    adapter = _make_adapter(coder, store, run_id, workdir, problem, budget, policies,
+                            completion_fn)
+    watchdog = Watchdog(policies)
+    mutation_note = ""
+    status = "done"
+    completed = 0
+    for iteration in range(policies.max_iterations):
+        if stop_event is not None and stop_event.is_set():
+            events.append_event(store, run_id, events.STOP, agent_id=coder.id,
+                                task_id=task_id, payload={"reason": "operator"})
+            tasks.release_task(store, run_id, task_id)
+            status = "stopped"
+            break
+        state = steering.refresh()
+        tasks.renew_lease(store, task_id, policies.lease_seconds)
+        seed = build_seed_context(store, run_id, problem, workdir, state, iteration,
+                                  baseline_score, mutation_note)
+        seed.strategy = strategy
+        mutation_note = ""
+        events.append_event(store, run_id, events.ITERATION_START, agent_id=coder.id,
+                            task_id=task_id,
+                            payload={"iteration": iteration, "strategy": strategy,
+                                     "steering_hash": state.operator_hash})
+        try:
+            outcome = adapter.run_iteration(seed)
+        except BudgetExceededError as exc:
+            events.append_event(store, run_id, events.STOP, agent_id=coder.id,
+                                task_id=task_id, payload={"reason": str(exc)})
+            status = "budget_exhausted"
+            break
+        except Exception as exc:  # one agent's crash must not sink the fleet
+            events.append_event(store, run_id, events.STATUS, agent_id=coder.id,
+                                task_id=task_id, payload={"error": str(exc)[:200]})
+            status = "failed"
+            break
+        events.append_event(store, run_id, events.ITERATION_COMPLETE, agent_id=coder.id,
+                            task_id=task_id,
+                            payload={"iteration": iteration, "evals_run": outcome.evals_run,
+                                     "note": outcome.note, "strategy": strategy,
+                                     "context_pct": outcome.context_pct,
+                                     "steering_hash": state.operator_hash},
+                            cost_usd=outcome.cost_usd, tokens_in=outcome.tokens_in,
+                            tokens_out=outcome.tokens_out)
+        candidate_hash = code_hash((workdir / problem.candidate).read_text())
+        verdict = watchdog.observe_iteration(new_evals=outcome.evals_run,
+                                             candidate_hash=candidate_hash)
+        if verdict.action == "mutate":
+            mutation_note = f"WATCHDOG: {verdict.reason}"
+        elif verdict.action == "kill":
+            events.append_event(store, run_id, events.WATCHDOG_KILL, agent_id=coder.id,
+                                task_id=task_id, payload={"reason": verdict.reason})
+            tasks.release_task(store, run_id, task_id)
+            status = "stalled"
+            completed = iteration + 1
+            break
+        completed = iteration + 1
+    if status == "done":
+        tasks.set_status(store, task_id, "verified")
+    coder_status[coder.id] = (status, completed)
+
+
+def _export_champion(store, run_id, champ, coders, run_dir, base_workdir, problem) -> None:
+    """Copy the winning candidate into the shared workdir so /champion --export works."""
+    author = champ["author"]
+    src_workdir = base_workdir
+    if len(coders) > 1 and any(c.id == author for c in coders):
+        src_workdir = run_dir / f"workdir-{author}"
+    src = src_workdir / problem.candidate
+    dst = base_workdir / problem.candidate
+    if src.exists() and src.resolve() != dst.resolve():
+        shutil.copy(src, dst)
+
+
 def start_run(
     fleet: FleetConfig,
     runs_root: Path = Path("runs"),
@@ -87,82 +164,61 @@ def start_run(
         "run_name": fleet.run_name, "problem": str(fleet.problem),
         "cwd": str(Path.cwd()), "started_at": utcnow(),
     }, sessions_path=sessions_path)
-    workdir = run_dir / "workdir"
-    shutil.copytree(fleet.problem, workdir)
-    problem = load_problem(workdir)
+    base_workdir = run_dir / "workdir"
+    shutil.copytree(fleet.problem, base_workdir)
+    problem = load_problem(base_workdir)
     policies = fleet.policies
     budget = BudgetTracker(fleet.budgets.total_usd, fleet.budgets.per_role_usd,
                            store=store, run_id=run_id)
-    coder = resolve_coders(fleet)[0]
-    store.execute(
-        "INSERT INTO agents (agent_id, run_id, adapter, model, workdir, started_at)"
-        " VALUES (?,?,?,?,?,?)",
-        (coder.id, run_id, coder.adapter, coder.model, str(workdir), utcnow()),
-    )
-    adapter = _make_adapter(coder, store, run_id, workdir, problem, budget, policies,
-                            completion_fn)
+    coders = resolve_coders(fleet)
     steering = Steering(store, run_id, problem.score.direction)
-    watchdog = Watchdog(policies)
 
-    baseline = evaluate(problem, workdir, store=store, run_id=run_id, agent_id="baseline")
+    # baseline established once, in the shared workdir the champion is exported from
+    baseline = evaluate(problem, base_workdir, store=store, run_id=run_id,
+                        agent_id="baseline")
     baseline_score = baseline.score_value
 
-    task_id = tasks.create_task(store, run_id, spec={"goal": "improve score"})
-    tasks.claim_task(store, run_id, coder.id, policies.lease_seconds)
+    # one worktree + task + watchdog per coder; all share the blackboard store so
+    # dedup, the negative ledger, and champion selection work across the fleet
+    coder_status: dict[str, str] = {}
+    threads: list[threading.Thread] = []
+    for coder in coders:
+        coder_workdir = run_dir / f"workdir-{coder.id}" if len(coders) > 1 else base_workdir
+        if coder_workdir != base_workdir:
+            shutil.copytree(fleet.problem, coder_workdir)
+        store.execute(
+            "INSERT INTO agents (agent_id, run_id, adapter, model, workdir, started_at)"
+            " VALUES (?,?,?,?,?,?)",
+            (coder.id, run_id, coder.adapter, coder.model, str(coder_workdir), utcnow()),
+        )
+        strategy = coder.strategy or f"strategy-{coder.id}"
+        task_id = tasks.create_task(store, run_id, spec={"goal": "improve score",
+                                                         "strategy": strategy})
+        tasks.claim_task(store, run_id, coder.id, policies.lease_seconds)
+        args = (coder, coder_workdir, task_id, strategy, store, run_id, problem,
+                budget, policies, steering, baseline_score, stop_event, completion_fn,
+                coder_status)
+        threads.append(threading.Thread(target=_run_coder, args=args, daemon=True))
 
-    status = "done"
-    mutation_note = ""
-    iterations_done = 0
-    for iteration in range(policies.max_iterations):
-        if stop_event is not None and stop_event.is_set():
-            events.append_event(store, run_id, events.STOP, agent_id=coder.id,
-                                payload={"reason": "operator"})
-            tasks.release_task(store, run_id, task_id)
-            status = "stopped"
-            break
-        state = steering.refresh()
-        tasks.expire_stale_leases(store, run_id)
-        tasks.renew_lease(store, task_id, policies.lease_seconds)
-        seed = build_seed_context(store, run_id, problem, workdir, state, iteration,
-                                  baseline_score, mutation_note)
-        mutation_note = ""
-        events.append_event(store, run_id, events.ITERATION_START, agent_id=coder.id,
-                            task_id=task_id,
-                            payload={"iteration": iteration,
-                                     "steering_hash": state.operator_hash})
-        try:
-            outcome = adapter.run_iteration(seed)
-        except BudgetExceededError as exc:
-            events.append_event(store, run_id, events.STOP, agent_id=coder.id,
-                                payload={"reason": str(exc)})
-            status = "budget_exhausted"
-            iterations_done = iteration + 1
-            break
-        iterations_done = iteration + 1
-        events.append_event(store, run_id, events.ITERATION_COMPLETE, agent_id=coder.id,
-                            task_id=task_id,
-                            payload={"iteration": iteration, "evals_run": outcome.evals_run,
-                                     "note": outcome.note,
-                                     "context_pct": outcome.context_pct,
-                                     "steering_hash": state.operator_hash},
-                            cost_usd=outcome.cost_usd,
-                            tokens_in=outcome.tokens_in,
-                            tokens_out=outcome.tokens_out)
-        candidate_hash = code_hash((workdir / problem.candidate).read_text())
-        verdict = watchdog.observe_iteration(new_evals=outcome.evals_run,
-                                             candidate_hash=candidate_hash)
-        if verdict.action == "mutate":
-            mutation_note = f"WATCHDOG: {verdict.reason}"
-        elif verdict.action == "kill":
-            events.append_event(store, run_id, events.WATCHDOG_KILL, agent_id=coder.id,
-                                task_id=task_id, payload={"reason": verdict.reason})
-            tasks.release_task(store, run_id, task_id)
-            status = "stalled"
-            break
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    iterations_done = max((c[1] for c in coder_status.values()), default=0)
+    statuses = {c[0] for c in coder_status.values()}
+    if "budget_exhausted" in statuses:
+        status = "budget_exhausted"
+    elif stop_event is not None and stop_event.is_set():
+        status = "stopped"
+    elif statuses <= {"stalled", "failed"} and statuses:
+        status = "stalled" if "stalled" in statuses else "failed"
+    else:
+        status = "done"
 
     champ = ledger.champion(store, run_id, problem.score.direction)
-    if status == "done":
-        tasks.set_status(store, task_id, "verified")
+    if champ is not None and champ["author"] not in (None, "baseline"):
+        _export_champion(store, run_id, champ, coders, run_dir, base_workdir, problem)
     events.append_event(store, run_id, events.STOP, payload={"status": status})
     store.execute("UPDATE runs SET ended_at=?, status=? WHERE run_id=?",
                   (utcnow(), status, run_id))

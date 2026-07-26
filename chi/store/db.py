@@ -1,6 +1,7 @@
 """SQLite store: one database per run, WAL mode, JSONL mirrors alongside."""
 
 import sqlite3
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,6 +19,9 @@ class Store:
     def __init__(self, run_dir: Path, conn: sqlite3.Connection) -> None:
         self.run_dir = run_dir
         self.conn = conn
+        # one connection shared across fleet threads: serialize every use so a
+        # write can't interleave with another thread's cursor (InterfaceError)
+        self.lock = threading.RLock()
 
     @classmethod
     def open(cls, run_dir: Path) -> "Store":
@@ -37,14 +41,16 @@ class Store:
         return cls(run_dir, conn)
 
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
-        """Execute a single statement and commit."""
-        cur = self.conn.execute(sql, params)
-        self.conn.commit()
-        return cur
+        """Execute a single statement and commit (fully serialized)."""
+        with self.lock:
+            cur = self.conn.execute(sql, params)
+            self.conn.commit()
+            return cur
 
     def query(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
-        """Read-only fetch."""
-        return self.conn.execute(sql, params).fetchall()
+        """Read-only fetch (serialized against concurrent writers)."""
+        with self.lock:
+            return self.conn.execute(sql, params).fetchall()
 
     def close(self) -> None:
         """Close the connection."""

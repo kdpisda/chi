@@ -36,16 +36,18 @@ def create_task(
 def claim_task(store: Store, run_id: str, agent_id: str, lease_seconds: int) -> str | None:
     """Atomically claim the highest-priority pending task; None if none available."""
     # RETURNING cursors must be fully consumed before commit, so run this
-    # against the raw connection and commit after the fetch.
-    cur = store.conn.execute(
-        "UPDATE tasks SET status='claimed', owner_id=?, lease_expires_at=?, updated_at=?"
-        " WHERE task_id = (SELECT task_id FROM tasks WHERE run_id=? AND status='pending'"
-        "                  ORDER BY priority DESC, created_at ASC LIMIT 1)"
-        " AND status='pending' RETURNING task_id",
-        (agent_id, _lease_ts(lease_seconds), utcnow(), run_id),
-    )
-    row = cur.fetchone()
-    store.conn.commit()
+    # against the raw connection and commit after the fetch — under the store
+    # lock so a concurrent fleet writer can't corrupt the in-flight cursor.
+    with store.lock:
+        cur = store.conn.execute(
+            "UPDATE tasks SET status='claimed', owner_id=?, lease_expires_at=?, updated_at=?"
+            " WHERE task_id = (SELECT task_id FROM tasks WHERE run_id=? AND status='pending'"
+            "                  ORDER BY priority DESC, created_at ASC LIMIT 1)"
+            " AND status='pending' RETURNING task_id",
+            (agent_id, _lease_ts(lease_seconds), utcnow(), run_id),
+        )
+        row = cur.fetchone()
+        store.conn.commit()
     if row is None:
         return None
     events.append_event(store, run_id, events.CLAIM, agent_id=agent_id, task_id=row["task_id"])

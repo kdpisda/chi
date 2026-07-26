@@ -234,7 +234,8 @@ def explore_path(path_str: str) -> str:
     path = Path(path_str).expanduser()
     if not path.exists():
         return f"ERROR: {path} does not exist"
-    if path.is_file() and _looks_secret(path):
+    resolved = path.resolve()  # follow symlinks before the secret check (evasion guard)
+    if resolved.is_file() and (_looks_secret(path) or _looks_secret(resolved)):
         return (f"REFUSED: {path.name} looks like a secret; chi won't read credentials"
                 " out to the model. Ask the user directly if you need this.")
     if path.is_dir():
@@ -294,11 +295,28 @@ def fetch_url(url: str, opener: Callable | None = None) -> str:
         if opener is not None:
             raw = opener(url)
         else:
+            import urllib.error
             import urllib.request
 
+            # no-redirect opener: a 3xx to an internal host would bypass _blocked_host
+            class _NoRedirect(urllib.request.HTTPRedirectHandler):
+                def redirect_request(self, *a, **k):  # noqa: D401,ANN001,ANN002,ANN003
+                    return None
+
+            opener_obj = urllib.request.build_opener(_NoRedirect)
             request = urllib.request.Request(url, headers={"User-Agent": "chi/0.1"})
-            with urllib.request.urlopen(request, timeout=20) as response:
-                raw = response.read(200_000).decode("utf-8", errors="replace")
+            try:
+                with opener_obj.open(request, timeout=20) as response:
+                    raw = response.read(200_000).decode("utf-8", errors="replace")
+            except urllib.error.HTTPError as http_exc:
+                if http_exc.code in (301, 302, 303, 307, 308):
+                    location = http_exc.headers.get("Location", "")
+                    blocked = _blocked_host(location) if location else None
+                    if blocked:
+                        return f"ERROR: redirect to internal host {blocked} blocked"
+                    return (f"ERROR: {url} redirected ({http_exc.code}) to {location};"
+                            " fetch that URL directly if it is safe")
+                raise
     except Exception as exc:  # DNS/TLS/HTTP each raise differently; report, don't die
         return f"ERROR: fetch failed: {exc}"
     text = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", raw, flags=re.S | re.I)

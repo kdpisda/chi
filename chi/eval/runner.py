@@ -41,6 +41,7 @@ def evaluate(
     agent_id: str = "local",
     task_id: str | None = None,
     parent_code_hash: str | None = None,
+    strategy: str | None = None,
 ) -> EvalResult:
     """Evaluate the candidate in workdir; records to the store when attached."""
     workdir = Path(workdir)
@@ -115,5 +116,6 @@ def evaluate(
             seeds_passed=result.seeds_passed, score_value=result.score_value,
             noise_std=result.noise_std, agent_id=agent_id, task_id=task_id,
             score_metric=problem.score.metric, parent_code_hash=parent_code_hash,
+            strategy=strategy,
         )
     return result

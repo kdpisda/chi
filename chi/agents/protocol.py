@@ -22,6 +22,7 @@ class SeedContext:
     steering_hash: str
     iteration: int
     mutation_note: str = ""
+    strategy: str | None = None
 
 
 @dataclass

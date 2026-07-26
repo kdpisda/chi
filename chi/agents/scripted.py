@@ -20,6 +20,6 @@ class ScriptedAdapter(CoderAdapter):
             (self.workdir / self.problem.candidate).write_text(source)
         evaluate(
             self.problem, self.workdir, store=self.store, run_id=self.run_id,
-            agent_id=self.agent_id,
+            agent_id=self.agent_id, strategy=seed.strategy,
         )
         return IterationOutcome(evals_run=1)

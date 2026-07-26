@@ -13,16 +13,19 @@ CLI_SUBSTRATES: dict[str, str] = {
     "claude": ('claude -p "Follow the instructions in {prompt_file} exactly."'
                " --allowedTools Bash,Edit,Write,Read"),
     "codex": 'codex exec --full-auto "Follow the instructions in {prompt_file} exactly."',
+    "grok": 'grok --no-interactive "Follow the instructions in {prompt_file} exactly."',
 }
 
 # model variants selectable per CLI substrate ("default" = the CLI's own setting)
 CLI_MODEL_CHOICES: dict[str, list[str]] = {
     "claude": ["default", "opus", "sonnet", "haiku"],
-    "codex": ["default"],
+    "codex": ["default", "gpt-5.6-codex", "gpt-5.6"],
+    "grok": ["default", "grok-4", "grok-code-fast"],
 }
 CLI_MODEL_FLAGS: dict[str, str] = {
     "claude": "--model {model}",
     "codex": "-m {model}",
+    "grok": "--model {model}",
 }
 
 

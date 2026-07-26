@@ -17,11 +17,14 @@ class BudgetTracker:
         store: Store | None = None,
         run_id: str | None = None,
     ) -> None:
+        import threading
+
         self.total_usd = total_usd
         self.per_role = per_role or {}
         self._spent: dict[str, float] = {}
         self._store = store
         self._run_id = run_id
+        self._lock = threading.Lock()  # fleet agents record spend concurrently
 
     @property
     def spent(self) -> float:
@@ -54,7 +57,8 @@ class BudgetTracker:
 
     def record(self, cost_usd: float, role: str = "default") -> None:
         """Record spend for a role; persists to the budgets table when attached."""
-        self._spent[role] = self.spent_for(role) + cost_usd
+        with self._lock:
+            self._spent[role] = self.spent_for(role) + cost_usd
         if self._store is not None and self._run_id is not None:
             self._store.execute(
                 "INSERT INTO budgets (scope, run_id, cap_usd, spent_usd, updated_at)"
