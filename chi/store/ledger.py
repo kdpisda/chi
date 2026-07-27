@@ -66,6 +66,23 @@ def champion(store: Store, run_id: str, direction: str = "minimize") -> sqlite3.
     return rows[0] if rows else None
 
 
+def latest_experiment(store: Store, run_id: str, author: str) -> sqlite3.Row | None:
+    """The most recently recorded experiment by one author in a run.
+
+    The watchdog's loop-detection uses this — NOT the on-disk candidate file — to
+    tell whether an agent is genuinely exploring. Coders revert candidate.py to
+    the champion after a losing benchmark, so the file hash looks "unchanged"
+    every iteration even when the agent evaluated a new, distinct candidate. The
+    store is the source of truth for what was actually tried.
+    """
+    rows = store.query(
+        "SELECT * FROM experiments WHERE run_id=? AND author=?"
+        " ORDER BY ts DESC, rowid DESC LIMIT 1",
+        (run_id, author),
+    )
+    return rows[0] if rows else None
+
+
 def add_negative(
     store: Store,
     run_id: str,
