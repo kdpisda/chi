@@ -46,25 +46,12 @@ def _make_adapter(
     policies: PoliciesCfg,
     completion_fn: Callable | None,
 ) -> CoderAdapter:
-    """Build the configured adapter for the coder entry."""
-    kwargs = dict(store=store, run_id=run_id, agent_id=coder.id, model=coder.model,
-                  workdir=workdir, problem=problem, budget=budget, policies=policies,
-                  command=coder.command, script=coder.script)
-    if coder.adapter == "scripted":
-        return ScriptedAdapter(**kwargs)
-    if coder.adapter == "litellm_loop":
-        return LiteLLMLoopAdapter(**kwargs, completion_fn=completion_fn)
-    if coder.adapter == "cli_subprocess":
-        if not coder.command:
-            raise ValueError("cli_subprocess adapter requires 'command' in the coder config")
-        return CliSubprocessAdapter(**kwargs)
-    if coder.adapter == "json_stream":
-        if not coder.command:
-            raise ValueError("json_stream adapter requires 'command' in the coder config")
-        from chi.agents.json_stream import JsonStreamCliAdapter
+    """Build the configured adapter for the coder entry (via the registry)."""
+    from chi.agents.registry import build_adapter
 
-        return JsonStreamCliAdapter(**kwargs)
-    raise ValueError(f"unknown adapter {coder.adapter}")
+    return build_adapter(coder, store=store, run_id=run_id, workdir=workdir,
+                         problem=problem, budget=budget, policies=policies,
+                         completion_fn=completion_fn)
 
 
 def _build_auto_submitter(store, run_id, problem):

@@ -51,6 +51,7 @@ class CoderAdapter(ABC):
         policies: PoliciesCfg,
         command: str | None = None,
         script: str | None = None,
+        sandbox=None,
     ) -> None:
         self.store = store
         self.run_id = run_id
@@ -62,6 +63,9 @@ class CoderAdapter(ABC):
         self.policies = policies
         self.command = command
         self.script = script
+        from chi.agents.sandbox import LocalSandbox
+
+        self.sandbox = sandbox or LocalSandbox()
         self._acked: set[str] = set()
 
     @abstractmethod

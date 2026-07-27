@@ -140,8 +140,15 @@ class JsonStreamCliAdapter(CoderAdapter):
             dead_ends=dead, run_dir=self.store.run_dir.resolve(), agent_id=self.agent_id,
         ))
 
+        import os
+
+        from chi.eval.popcorn_shim import agent_env, install_shim
+
         base = self.command.format(prompt_file=prompt_file.resolve())
         argv = shlex.split(base) + shlex.split(self.JSON_FLAGS)
+        shim_dir = self.workdir / ".chi" / "bin"
+        install_shim(shim_dir)
+        env = agent_env(os.environ, shim_dir)
 
         stop = threading.Event()
 
@@ -155,10 +162,8 @@ class JsonStreamCliAdapter(CoderAdapter):
         note = ""
         raw = ""
         try:
-            proc = subprocess.run(
-                argv, cwd=self.workdir, capture_output=True, text=True,
-                timeout=self.policies.iteration_timeout_seconds,
-            )
+            proc = self.sandbox.run(
+                argv, self.workdir, env, self.policies.iteration_timeout_seconds)
             raw = proc.stdout or ""
             if proc.returncode != 0:
                 note = f"exit {proc.returncode}"

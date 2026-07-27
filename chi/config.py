@@ -14,6 +14,9 @@ class CoderCfg(BaseModel):
     command: str | None = None  # cli_subprocess: template with {prompt_file}
     script: str | None = None  # scripted: path to JSON list of candidate sources
     strategy: str | None = None  # the distinct approach this agent explores
+    sandbox: Literal["none", "docker"] = "none"  # where the agent command runs
+    sandbox_image: str | None = None  # docker image when sandbox=docker
+    sandbox_network: str = "none"  # docker --network policy for the agent
 
 
 class BudgetsCfg(BaseModel):

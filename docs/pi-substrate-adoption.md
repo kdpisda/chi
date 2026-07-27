@@ -95,13 +95,13 @@ Do not dilute these; pi has none of them and they are the reason chi exists:
 | Item | Status |
 |---|---|
 | 1. JSON-protocol agent adapter | ✅ **Done** — `chi/agents/json_stream.py`, verified live, default for claude coders |
-| 2. Mediated submission via sandbox / DI-operations | ⏳ **Partial** — the popcorn shim mediates ranked submission and the json_stream adapter *records* direct attempts; the real per-agent sandbox (the proper fix) is the top remaining item and needs a dedicated build (a credential-jail-via-env slice was attempted and reverted as unsound — see `chi/eval/popcorn_shim.py`) |
+| 2. Mediated submission via sandbox / DI-operations | ✅ **Done** — `chi/agents/sandbox.py` is the DI seam (`LocalSandbox`/`DockerSandbox`), wired into both CLI adapters; `sandbox: docker` + `sandbox_image` on a coder runs it jailed to its workdir with `--network none` and no host-home mount. **Verified live**: agent sees `/workspace` but `/root` is empty (no host credentials → cannot submit). The shim still mediates ranked submits for the local path; the Docker sandbox removes the bypass by construction |
 | 3. Substrate capability layer | ✅ **Done** — `chi/providers/substrate.py`, `chi providers --probe`; catches codex-account/grok-syntax failures pre-run |
 | 4. Native-modifier TUI fix | ✅ **Addressed via framework** — Textual 8's Kitty keyboard protocol reports `shift+enter` natively on capable terminals; existing binding fires, Ctrl+J / trailing-`\` are universal fallbacks. No native module needed |
 | 5. Supply-chain hardening | ✅ **Done (first pass)** — CI with lockfile-in-sync + `pip-audit`; `SECURITY.md` threat model. Remaining: SHA-pin actions, dep-review gate, min-release-age |
-| 6. Minimal-core + extension model | ⬜ **Not started** — large refactor; do last |
+| 6. Minimal-core + extension model | ✅ **First slice done** — `chi/agents/registry.py`: adapters register by name (`register_adapter`/`@adapter`), `_make_adapter` is now a registry lookup, so adding a substrate is registration not a core edit. Backends (Modal/SSH/leaderboard) can get the same treatment next |
 
-**Reached:** the tractable, high-value majority (1, 3, 4, 5) is implemented and tested; the highest-leverage item (1) is done and verified live. The two genuinely-large architectural items remain: **item 2 (real per-agent sandbox)** — the most important, safety-critical, deserves its own focused session — and **item 6 (extension model)** — a broad refactor best done after the rest stabilizes.
+**Reached:** all six items have a working, tested implementation. Items 1 (JSON protocol) and 2 (Docker sandbox) are verified live against real tooling. Item 2's sandbox is the important one — it removes the agent-submission-bypass by construction (agent runs jailed in a container with no host credentials). Remaining polish, not core work: extend the registry (item 6) to execution backends, harden CI further (item 5: SHA-pin actions, dep-review, min-release-age), and make the Docker sandbox the default for CLI coders once a chi agent image is published.
 
 ## Proposed sequencing
 

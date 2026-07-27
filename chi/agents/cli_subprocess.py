@@ -82,10 +82,9 @@ class CliSubprocessAdapter(CoderAdapter):
         install_shim(shim_dir)
         env = agent_env(os.environ, shim_dir)
         try:
-            proc = subprocess.run(
+            proc = self.sandbox.run(
                 shlex.split(self.command.format(prompt_file=prompt_file.resolve())),
-                cwd=self.workdir, capture_output=True, text=True, env=env,
-                timeout=self.policies.iteration_timeout_seconds,
+                self.workdir, env, self.policies.iteration_timeout_seconds,
             )
             stdout, stderr = proc.stdout, proc.stderr
             if proc.returncode != 0:
