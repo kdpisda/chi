@@ -52,6 +52,54 @@ def test_watchdog_kills_unchanging_agent(tmp_path: Path) -> None:
     assert row["status"] == "pending"
 
 
+def test_watchdog_keeps_agent_that_evaluates_distinct_candidates(tmp_path: Path, monkeypatch) -> None:
+    # Regression: a real coder reverts candidate.py to the champion after a
+    # losing benchmark, so the on-disk file hash is constant every iteration —
+    # even though the agent evaluated a NEW distinct candidate each round. The
+    # watchdog must read the evaluated candidate (from the store), not the file,
+    # or it falsely reaps a productive agent as "candidate unchanged N iterations".
+    from chi.agents.protocol import IterationOutcome
+    from chi.agents.scripted import ScriptedAdapter
+    from chi.eval.runner import evaluate
+
+    def reverting_run_iteration(self, seed) -> IterationOutcome:
+        self.ack_steering(seed.steering_hash)
+        self.heartbeat()
+        cand = self.workdir / self.problem.candidate
+        seed_src = cand.read_text()
+        # a distinct-but-correct candidate each iteration (new code hash; a
+        # trailing comment changes the hash without beating the baseline)
+        cand.write_text(seed_src + f"\n# distinct attempt {seed.iteration}\n")
+        evaluate(self.problem, self.workdir, store=self.store, run_id=self.run_id,
+                 agent_id=self.agent_id, strategy=seed.strategy)
+        cand.write_text(seed_src)  # coder reverts the losing attempt to the seed
+        return IterationOutcome(evals_run=1)
+
+    monkeypatch.setattr(ScriptedAdapter, "run_iteration", reverting_run_iteration)
+    script_path = tmp_path / "s.json"
+    script_path.write_text(json.dumps([NAIVE]))  # unused by the patched method
+
+    fleet = FleetConfig.model_validate({
+        "run_name": "t",
+        "problem": str(PROBLEM_DIR),
+        "budgets": {"total_usd": 1.0},
+        "coders": [{"id": "c1", "model": "scripted", "adapter": "scripted",
+                     "script": str(script_path)}],
+        # eval-recency disabled so ONLY the repeat-hash rule can act; 8 rounds is
+        # past the old 2*repeat_k=6 kill threshold.
+        "policies": {"max_iterations": 8, "eval_recency_iters": 100, "repeat_k": 3},
+    })
+    summary = start_run(fleet, runs_root=tmp_path / "runs")
+    store = Store.open(summary.run_dir)
+    kills = list_events(store, summary.run_id, "WATCHDOG_KILL")
+    assert kills == [], "productive agent (8 distinct evaluated candidates) was falsely killed"
+    assert summary.status == "done"
+    # it really did evaluate distinct candidates every iteration
+    distinct = store.query(
+        "SELECT COUNT(DISTINCT code_hash) n FROM experiments WHERE author='c1'")[0]["n"]
+    assert distinct >= 8
+
+
 def test_agent_acked_steering(tmp_path: Path) -> None:
     summary = start_run(_fleet(tmp_path, [NAIVE, GOOD]), runs_root=tmp_path / "runs")
     steering_path = summary.run_dir / "steering.md"

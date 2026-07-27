@@ -120,7 +120,9 @@ def _run_coder(coder, workdir, task_id, strategy, store, run_id, problem, budget
                             cost_usd=outcome.cost_usd, tokens_in=outcome.tokens_in,
                             tokens_out=outcome.tokens_out)
         candidate_hash = code_hash((workdir / problem.candidate).read_text())
-        # auto-submit the candidate just benchmarked, if it clears the rails
+        # auto-submit the candidate just benchmarked, if it clears the rails.
+        # (On a WINNING iteration the coder keeps the winning candidate.py, so
+        # this file hash correctly resolves to the improving experiment.)
         if auto_submitter is not None and outcome.evals_run > 0:
             exp = ledger.get_experiment(store, candidate_hash)
             if exp is not None:
@@ -129,8 +131,18 @@ def _run_coder(coder, workdir, task_id, strategy, store, run_id, problem, budget
                 events.append_event(
                     store, run_id, events.STATUS, agent_id=coder.id, task_id=task_id,
                     payload={"auto_submit": decision.reason, "submitted": decision.submitted})
+        # The watchdog's loop-detection must track the candidate the coder
+        # actually EVALUATED this iteration, not the on-disk file: coders revert
+        # candidate.py to the champion after a losing benchmark, so the file hash
+        # looks unchanged every iteration and would falsely reap an agent that is
+        # exploring a new distinct candidate each round. The store is the truth.
+        watchdog_hash = candidate_hash
+        if outcome.evals_run > 0:
+            latest = ledger.latest_experiment(store, run_id, coder.id)
+            if latest is not None:
+                watchdog_hash = latest["code_hash"]
         verdict = watchdog.observe_iteration(new_evals=outcome.evals_run,
-                                             candidate_hash=candidate_hash)
+                                             candidate_hash=watchdog_hash)
         if verdict.action == "mutate":
             mutation_note = f"WATCHDOG: {verdict.reason}"
         elif verdict.action == "kill":
