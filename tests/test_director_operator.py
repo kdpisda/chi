@@ -34,3 +34,36 @@ def test_operator_dispatch_has_director_tools():
 
     names = {t["function"]["name"] for t in TOOLS}
     assert {"start_director", "stop_director", "director_status"} <= names
+
+
+class _FakeDir:
+    alive = True
+
+    def __init__(self, run_dir):
+        self.run_dir = run_dir
+
+
+def test_interject_writes_priority_directive(tmp_path):
+    from chi.session.engine import SessionEngine
+
+    eng = SessionEngine(runs_root=tmp_path / "runs")
+    rd = tmp_path / "rd"
+    rd.mkdir()
+    eng._director = _FakeDir(rd)
+    out = eng.interject_director("focus on n=8192")
+    assert "next round" in out[0]
+    text = (rd / "steering.md").read_text()
+    assert "focus on n=8192" in text
+    assert "§op" in text  # under the operator marker the Strategist preserves
+
+
+def test_free_text_routes_to_interject_when_director_alive(tmp_path):
+    from chi.session.engine import SessionEngine
+
+    eng = SessionEngine(runs_root=tmp_path / "runs")
+    rd = tmp_path / "rd"
+    rd.mkdir()
+    eng._director = _FakeDir(rd)
+    out = eng.submit("try bigger tiles")  # plain text, director alive
+    assert "next round" in out[0]
+    assert "try bigger tiles" in (rd / "steering.md").read_text()

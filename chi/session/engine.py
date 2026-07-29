@@ -557,6 +557,14 @@ class SessionEngine:
         self._director.request_stop()
         return ["director stopping at the next round boundary"]
 
+    def interject_director(self, text: str) -> list[str]:
+        """Fold user direction into the running director's next round via steering."""
+        if self._director is None or not self._director.alive \
+                or self._director.run_dir is None:
+            return ["no director running to interject"]
+        self._append_steering(self._director.run_dir, f"(priority) {text.strip()}")
+        return ["queued for the director's next round"]
+
     def director_status(self) -> list[str]:
         if self._director is None:
             return ["no director this session"]
@@ -945,6 +953,11 @@ class SessionEngine:
     def _free_text(self, text: str) -> list[str]:
         from chi.providers.budgets import BudgetExceededError
         from chi.userconfig import load_user_config
+
+        # while the autonomous director runs, plain text is a mid-run interjection
+        # folded into its next round — not a fresh operator conversation
+        if self._director is not None and self._director.alive:
+            return self.interject_director(text)
 
         operator = self._operator()
         if operator is None:
