@@ -67,6 +67,43 @@ def test_director_emits_round_events_and_counts_spend(tmp_path, monkeypatch):
     assert round(director.cumulative_cost, 2) == 0.03
 
 
+def test_director_skips_brain_when_nothing_changed(tmp_path, monkeypatch):
+    # Pathological fast-spin guard: a slice that produces no new benchmarks and the
+    # same score must NOT re-invoke the (expensive) strategist/brain every round.
+    store = _seed_run(tmp_path)
+    import chi.director.loop as loopmod
+
+    def flat_digest(store_, run_id_, round_index, prev_best, direction="minimize",
+                    noise_band_pct=8.0):
+        return RoundDigest(round_index=round_index, best_score=636.0,
+                           champion_score=636.0, prev_best=636.0)
+
+    monkeypatch.setattr(loopmod, "build_digest", flat_digest)
+    stop = threading.Event()
+
+    class _ZeroRunner:  # every round: no new benchmarks, identical score
+        def __init__(self):
+            self.i = 0
+
+        def __call__(self, iterations):
+            self.i += 1
+            if self.i >= 5:
+                stop.set()
+            return RoundResult(round_index=self.i - 1, new_experiments=[],
+                               best_score=636.0, benchmarks_run=0, cost_usd=0.0)
+
+    strat = _FakeStrategist()
+    director = loopmod.Director(store, "r1", tmp_path / "r", _ZeroRunner(), strat,
+                                researcher=None, emit=lambda line: None,
+                                idle_sleep_seconds=0.0)
+    director.run(stop)
+
+    # every round still emits an event (liveness), but the strategist is invoked
+    # only on the FIRST round (the only one with new information)
+    assert len(list_events(store, "r1", "DIRECTOR_ROUND")) == 5
+    assert strat.calls == 1
+
+
 def test_director_researches_when_stuck(tmp_path, monkeypatch):
     store = _seed_run(tmp_path)
     import chi.director.loop as loopmod
