@@ -214,17 +214,49 @@ def start_run(
                         agent_id="baseline")
     baseline_score = baseline.score_value
 
+    return _launch_fleet(
+        store, run_id, run_dir, fleet, problem, policies, coders, steering,
+        auto_submitter, budget, baseline_score, completion_fn, stop_event,
+        sessions_path,
+    )
+
+
+def _launch_fleet(
+    store: Store,
+    run_id: str,
+    run_dir: Path,
+    fleet: FleetConfig,
+    problem: ProblemConfig,
+    policies: PoliciesCfg,
+    coders: list,
+    steering: Steering,
+    auto_submitter,
+    budget: BudgetTracker,
+    baseline_score: float | None,
+    completion_fn: Callable | None,
+    stop_event: threading.Event | None,
+    sessions_path: Path | None,
+) -> RunSummary:
+    """Run all coders for policies.max_iterations, aggregate, export champion.
+
+    Shared by start_run (round 1, after it creates the run + baseline) and
+    run_slice (rounds 2..N, continuing the same run). Deterministic; no LLM.
+    """
+    from chi.userconfig import record_session
+
+    base_workdir = run_dir / "workdir"
     # one worktree + task + watchdog per coder; all share the blackboard store so
     # dedup, the negative ledger, and champion selection work across the fleet
-    coder_status: dict[str, str] = {}
+    coder_status: dict[str, tuple[str, int]] = {}
     threads: list[threading.Thread] = []
     for coder in coders:
         coder_workdir = run_dir / f"workdir-{coder.id}" if len(coders) > 1 else base_workdir
-        if coder_workdir != base_workdir:
+        if coder_workdir != base_workdir and not coder_workdir.exists():
             shutil.copytree(fleet.problem, coder_workdir)
+        # INSERT OR IGNORE: a later slice re-uses the agent row from the first slice
         store.execute(
-            "INSERT INTO agents (agent_id, run_id, adapter, model, workdir, started_at)"
-            " VALUES (?,?,?,?,?,?)",
+            "INSERT OR IGNORE INTO agents (agent_id, run_id, adapter, model, workdir,"
+            " started_at) VALUES (?,?,?,?,?,?)",
             (coder.id, run_id, coder.adapter, coder.model, str(coder_workdir), utcnow()),
         )
         strategy = coder.strategy or f"strategy-{coder.id}"
@@ -269,4 +301,41 @@ def start_run(
         champion_score=None if champ is None else champ["score_value"],
         champion_hash=None if champ is None else champ["code_hash"],
         total_cost_usd=budget.spent, status=status,
+    )
+
+
+def run_slice(
+    fleet: FleetConfig,
+    run_dir: Path,
+    *,
+    iterations: int,
+    completion_fn: Callable | None = None,
+    stop_event: threading.Event | None = None,
+    sessions_path: Path | None = None,
+) -> RunSummary:
+    """Run `iterations` more iterations on an already-created run in run_dir.
+
+    Unlike start_run this does NOT create the run dir, copy the pack, or
+    re-establish baseline — the Director uses it for rounds 2..N so a sustained
+    run is one logical run with a growing store, not a chain of fresh runs.
+    """
+    store = Store.open(run_dir)
+    run_id = store.query("SELECT run_id FROM runs ORDER BY started_at LIMIT 1")[0]["run_id"]
+    problem = load_problem(run_dir / "workdir")
+    baseline_row = store.query(
+        "SELECT score_value FROM experiments WHERE run_id=? AND author='baseline'"
+        " ORDER BY ts LIMIT 1", (run_id,))
+    baseline_score = baseline_row[0]["score_value"] if baseline_row else None
+    sliced = fleet.model_copy(update={
+        "policies": fleet.policies.model_copy(update={"max_iterations": iterations})})
+    policies = sliced.policies
+    budget = BudgetTracker(sliced.budgets.total_usd, sliced.budgets.per_role_usd,
+                           store=store, run_id=run_id)
+    coders = resolve_coders(sliced)
+    steering = Steering(store, run_id, problem.score.direction)
+    auto_submitter = _build_auto_submitter(store, run_id, problem)
+    return _launch_fleet(
+        store, run_id, run_dir, sliced, problem, policies, coders, steering,
+        auto_submitter, budget, baseline_score, completion_fn, stop_event,
+        sessions_path,
     )
