@@ -99,6 +99,7 @@ class SessionEngine:
         self.quit_requested = False
         self._quit_after_stop = False
         self._handle: RunHandle | None = None
+        self._director = None  # DirectorHandle | None — the autonomous director
         self._reader: Store | None = None
         self._cursor = 0
         self._best_score: float | None = None
@@ -508,6 +509,60 @@ class SessionEngine:
         except ValueError as exc:
             return [f"error: {exc}"]
         return self._launch(fleet, source=str(path))
+
+    def _director_brain_fn(self):
+        """Resolve a (prompt) -> str brain for the director (CLI-backed), or None."""
+        if self.cli_runner_fn is not None:
+            return self.cli_runner_fn
+        import shutil
+
+        from chi.userconfig import load_user_config
+
+        cfg = load_user_config()
+        if cfg.operator_cli and shutil.which(cfg.operator_cli) is not None:
+            from chi.session.operator import _default_cli_runner
+
+            return _default_cli_runner(cfg.operator_cli)
+        return None  # Strategist/Researcher degrade to deterministic-only
+
+    def start_director(self, problem_dir: str) -> list[str]:
+        """Launch the autonomous research director on a problem directory."""
+        from chi.config import BudgetsCfg, FleetConfig, PoliciesCfg, resolve_coders
+        from chi.session.director_runner import DirectorHandle
+        from chi.userconfig import load_user_config
+
+        path = Path(problem_dir).expanduser()
+        if not (path / "problem.yaml").exists():
+            return [f"error: {path} is not a problem directory (no problem.yaml)"]
+        if self._director is not None and self._director.alive:
+            return ["error: a director is already running — stop it first (/stop)"]
+        cfg = load_user_config()
+        fleet = FleetConfig(run_name=path.name, problem=path,
+                            budgets=BudgetsCfg(total_usd=cfg.default_budget_usd),
+                            coders=[], policies=PoliciesCfg())
+        try:
+            resolve_coders(fleet)
+        except ValueError as exc:
+            return [f"error: {exc}"]
+        self._director = DirectorHandle(fleet, self.runs_root,
+                                        brain_fn=self._director_brain_fn(),
+                                        emit=self.emit_progress)
+        self._director.start()
+        return [f"director starting on {path.name} — it self-steers until you /stop it;"
+                " watch the round/state/spend counter, type to interject"]
+
+    def stop_director(self) -> list[str]:
+        if self._director is None or not self._director.alive:
+            return ["no director running"]
+        self._director.request_stop()
+        return ["director stopping at the next round boundary"]
+
+    def director_status(self) -> list[str]:
+        if self._director is None:
+            return ["no director this session"]
+        d = self._director
+        return [f"director {'alive' if d.alive else 'stopped'} run={d.run_id}"
+                f" · Σ {d.cumulative_benchmarks} benches ${d.cumulative_cost:.2f}"]
 
     def _launch(self, fleet, source: str) -> list[str]:
         if self.has_active_run():
