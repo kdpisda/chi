@@ -89,6 +89,25 @@ TOOLS = [
                        "properties": {"reason": {"type": "string"}},
                        "required": ["reason"]}}},
     {"type": "function", "function": {
+        "name": "start_director",
+        "description": "Start the AUTONOMOUS research director on a problem directory."
+                       " It runs the fleet in rounds, meta-reviews results, researches"
+                       " when stuck, and re-steers the agents ON ITS OWN until the user"
+                       " stops it. Use when the user wants chi to 'keep improving on its"
+                       " own' from a single task — do NOT babysit it with per-round steers.",
+        "parameters": {"type": "object",
+                       "properties": {"problem_dir": {"type": "string"}},
+                       "required": ["problem_dir"]}}},
+    {"type": "function", "function": {
+        "name": "stop_director",
+        "description": "Stop the autonomous director at the next round boundary.",
+        "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
+        "name": "director_status",
+        "description": "Director state + running benchmark/$ spend counter (the guardrail"
+                       " under run-until-stopped).",
+        "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
         "name": "scaffold_problem",
         "description": "Build a chi problem pack (problem.yaml + eval wrappers) by"
                        " delegating to a full-tool setup agent, wrapping an existing"
@@ -112,7 +131,14 @@ Rules:
 - start_run needs a directory containing problem.yaml. When the evaluator exists
   but isn't wrapped yet, call scaffold_problem(name, source, notes) — a full-tool
   setup agent writes and verifies the pack — then start_run its directory.
-- While a run is active, user direction about the work becomes a steer() call.
+- When the user hands you a task to pursue AUTONOMOUSLY ("keep improving it on its
+  own", "run until you beat X", "auto-research this"), use start_director, not
+  start_run: the director self-steers (meta-review, research-when-stuck, strategy
+  mutation) round after round until stopped. First make sure you have a problem
+  directory and a clear goal — ask ONE focused question only if the task is too thin
+  to act on; otherwise start it. While a director runs, user direction is folded into
+  its next round automatically — you don't need to steer each round.
+- While a plain run is active, user direction about the work becomes a steer() call.
 - Answer state questions (scores, dead ends, status) from tools only — never invent
   numbers. If a tool errors, relay the error honestly.
 - The user can also use slash commands directly; mention one when it is the
@@ -369,6 +395,15 @@ def dispatch_tool(engine: "SessionEngine", name: str, args: dict) -> tuple[str, 
         shown = engine.launch_problem(str(args.get("problem_dir", "")),
                                       args.get("max_iterations"))
         return "\n".join(shown), shown
+    if name == "start_director":
+        shown = engine.start_director(str(args.get("problem_dir", "")))
+        return "\n".join(shown), shown
+    if name == "stop_director":
+        shown = engine.stop_director()
+        return "\n".join(shown), shown
+    if name == "director_status":
+        shown = engine.director_status()
+        return "\n".join(shown), []
     if name == "run_status":
         return json.dumps(engine.snapshot()), []
     if name == "get_champion":
@@ -400,6 +435,8 @@ Reply with ONLY one JSON object, nothing else. Available actions:
 {{"action":"start_run","problem_dir":"...","max_iterations":0}}   start a run (dir has problem.yaml; max_iterations optional)
 {{"action":"run_status"}}  {{"action":"get_champion"}}  {{"action":"query_ledger","text":"..."}}
 {{"action":"steer","text":"..."}}  {{"action":"stop_run"}}
+{{"action":"start_director","problem_dir":"..."}}  start the AUTONOMOUS director (self-steers until stopped)
+{{"action":"stop_director"}}  {{"action":"director_status"}}
 {{"action":"list_sessions"}}  {{"action":"resume_session","run_id":"..."}}
 {{"action":"explore","path":"..."}}          look at a directory or file (read-only)
 {{"action":"fetch","url":"..."}}             fetch a web page (text, truncated)

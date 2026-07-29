@@ -83,6 +83,37 @@ def latest_experiment(store: Store, run_id: str, author: str) -> sqlite3.Row | N
     return rows[0] if rows else None
 
 
+def dead_classes(store: Store, run_id: str) -> dict:
+    """approach_class -> number of times ruled out (any status)."""
+    rows = store.query(
+        "SELECT approach_class, COUNT(*) n FROM negative_ledger WHERE run_id=?"
+        " GROUP BY approach_class", (run_id,))
+    return {r["approach_class"]: r["n"] for r in rows}
+
+
+def mark_near_miss(store: Store, run_id: str, code_hash: str, score_value: float) -> None:
+    """Flag an experiment as a promising near-parity base (no schema change:
+    recorded as a STATUS event the Strategist can promote to a new base)."""
+    events.append_event(store, run_id, events.STATUS,
+                        payload={"near_miss": code_hash, "score": score_value})
+
+
+def list_near_misses(store: Store, run_id: str) -> list[dict]:
+    """Near-miss bases recorded via mark_near_miss, newest first, de-duplicated."""
+    rows = store.query(
+        "SELECT payload_json FROM events WHERE run_id=? AND type=? ORDER BY event_id DESC",
+        (run_id, events.STATUS))
+    out: list[dict] = []
+    seen: set[str] = set()
+    for r in rows:
+        payload = json.loads(r["payload_json"])
+        code_hash = payload.get("near_miss")
+        if code_hash and code_hash not in seen:
+            seen.add(code_hash)
+            out.append({"code_hash": code_hash, "score": payload.get("score")})
+    return out
+
+
 def add_negative(
     store: Store,
     run_id: str,
