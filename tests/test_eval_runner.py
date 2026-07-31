@@ -84,6 +84,28 @@ def test_benchmark_infra_failure_is_not_marked_incorrect(tmp_path: Path) -> None
     assert "benchmark failed" in res.detail
 
 
+def test_nonpositive_score_is_rejected_not_crowned(tmp_path: Path) -> None:
+    # Dogfood found a coder that froze the benchmark's perf_counter so runtime_ms
+    # reported 0.0 — a physically impossible score that would be crowned champion
+    # in a minimize problem. A non-positive (or non-finite) measurement is invalid:
+    # keep correct=True (it computed the right answer) but refuse the score.
+    wd = _mkproblem(tmp_path, "# GOOD FAST\n")
+    (wd / "bench.py").write_text('import json\nprint(json.dumps({"score": 0.0}))\n')
+    res = evaluate(load_problem(wd), wd)
+    assert res.score_value is None
+    assert "invalid" in res.detail.lower() or "non-positive" in res.detail.lower()
+
+
+def test_negative_and_inf_scores_rejected(tmp_path: Path) -> None:
+    for i, bad in enumerate(("-1.0", "1e999")):  # negative, and inf (json 1e999 -> Infinity)
+        parent = tmp_path / f"case{i}"
+        parent.mkdir()
+        wd = _mkproblem(parent, "# GOOD FAST\n")
+        (wd / "bench.py").write_text(f'import json\nprint(json.dumps({{"score": {bad}}}))\n')
+        res = evaluate(load_problem(wd), wd)
+        assert res.score_value is None
+
+
 def test_dedup_returns_cached(tmp_path: Path) -> None:
     wd = _mkproblem(tmp_path, "# GOOD\n")
     store = Store.open(tmp_path / "run")

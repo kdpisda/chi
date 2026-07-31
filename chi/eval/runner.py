@@ -1,6 +1,7 @@
 """Tier-1 local evaluation: correctness hard gate, then median-of-k benchmark."""
 
 import json
+import math
 import shlex
 import statistics
 import subprocess
@@ -106,7 +107,15 @@ def evaluate(
                 bench_failed = True
                 detail = f"benchmark failed: {proc.stderr.strip()}"[:500]
                 break
-            samples.append(float(json.loads(proc.stdout.strip().splitlines()[-1])["score"]))
+            sample = float(json.loads(proc.stdout.strip().splitlines()[-1])["score"])
+            # a runtime must be finite and strictly positive: a candidate that
+            # freezes the benchmark's clock (0.0) or reports a negative/inf time is
+            # gaming or broken, not fast. Reject the measurement — don't crown it.
+            if not math.isfinite(sample) or sample <= 0:
+                bench_failed = True
+                detail = f"invalid score {sample!r}: runtime must be finite and > 0"
+                break
+            samples.append(sample)
         if samples and not bench_failed:
             score_value = statistics.median(samples)
             noise_std = statistics.pstdev(samples) if len(samples) > 1 else 0.0
