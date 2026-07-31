@@ -1,6 +1,6 @@
 [project]
 name = "chi-harness"
-version = "0.1.0"
+dynamic = ["version"]  # single-sourced from chi/__init__.py:__version__
 description = "Chi (χ) — an open-source autoresearch harness CLI"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -25,6 +25,9 @@ chi = "chi.cli:app"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "chi/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["chi"]

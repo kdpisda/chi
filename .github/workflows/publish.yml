@@ -1,0 +1,60 @@
+name: publish
+
+# Publish chi-harness to PyPI when a GitHub Release is published.
+#
+# Uses PyPI Trusted Publishing (OIDC) — NO API token is stored in the repo.
+# One-time setup on PyPI (Account → Publishing → Add a pending publisher):
+#   PyPI project name: chi-harness
+#   Owner:  kdpisda        Repository: chi
+#   Workflow filename: publish.yml     Environment: pypi
+# The `id-token: write` permission below is what lets PyPI verify this workflow
+# minted the upload, so a leaked token can't publish in chi's name.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # actions pinned to commit SHAs (a moved tag can't hijack a pinned build);
+      # trailing comment records the tag each SHA froze
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
+        with:
+          python-version: "3.12"
+      # the release tag must match the packaged version, or a v0.2.0 release could
+      # silently ship 0.1.0 (version is single-sourced from chi/__init__.py). Read
+      # __version__ directly — `uv version` can't read a dynamic version. The tag
+      # comes from the runner-provided env var (not ${{...}}), the injection-safe form.
+      - name: verify tag matches package version
+        run: |
+          pkg="$(python3 -c "import re,pathlib; print(re.search(r'''__version__\s*=\s*['\"]([^'\"]+)''', pathlib.Path('chi/__init__.py').read_text()).group(1))")"
+          tag="${GITHUB_REF_NAME#v}"
+          echo "package=$pkg tag=$tag"
+          test "$pkg" = "$tag" || { echo "::error::release tag $GITHUB_REF_NAME (=$tag) != package version $pkg"; exit 1; }
+      - name: build sdist + wheel
+        run: uv build
+      - name: check metadata renders on PyPI
+        run: uvx twine check dist/*
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi  # gate releases behind the 'pypi' environment (add reviewers there)
+    permissions:
+      id-token: write  # OIDC — mints the short-lived token PyPI trusts; no secrets
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@a892a5a61159132606e93a2fa6f4358831b04d26  # v1.14.2

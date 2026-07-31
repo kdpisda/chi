@@ -5,3 +5,7 @@ runs/
 .env
 *.egg-info/
 .pytest_cache/
+dist/
+website/public/
+website/resources/
+.hugo_build.lock
