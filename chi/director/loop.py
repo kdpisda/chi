@@ -23,6 +23,7 @@ class Director:
                  round_runner: Callable[[int], RoundResult], strategist,
                  researcher=None, *, direction: str = "minimize",
                  emit: Callable[[str], None] | None = None, noise_guard=None,
+                 candidate_name: str = "candidate.py",
                  stuck_k: int = 2, iterations_per_round: int = 2,
                  per_coder_strategy: dict | None = None,
                  idle_sleep_seconds: float = 5.0,
@@ -36,6 +37,7 @@ class Director:
         self._direction = direction
         self._emit = emit or (lambda line: None)
         self._noise_guard = noise_guard
+        self._candidate_name = candidate_name
         self._stuck_k = stuck_k
         self._iters = iterations_per_round
         self._strategies = per_coder_strategy or {}
@@ -65,6 +67,20 @@ class Director:
                                   self._direction)
             state = classify_state(digest, history=history, stuck_k=self._stuck_k,
                                    direction=self._direction)
+            # an apparent improvement can be one lucky-low benchmark (the same
+            # kernel measured 636/652/686µs across runs — ~8% noise), so when a
+            # guard is configured the exported champion is re-benchmarked
+            # median-of-N before the win is believed. A refuted win demotes the
+            # round to plateaued and the improvement baseline stays put.
+            noise_verified: bool | None = None
+            if (state == DirectorState.IMPROVING and self._noise_guard is not None
+                    and prev_best is not None):
+                candidate = self._run_dir / "workdir" / self._candidate_name
+                verdict = self._noise_guard.verify(candidate, prev_best)
+                self.cumulative_benchmarks += verdict.benchmarks_run
+                noise_verified = verdict.is_real_improvement
+                if not verdict.is_real_improvement:
+                    state = DirectorState.PLATEAUED
             # only spend the (expensive) research/strategy brain when the round
             # actually produced new information — new candidates were benchmarked,
             # the score moved, or dead classes grew. A round that evaluated nothing
@@ -80,16 +96,19 @@ class Director:
                 update = self._strategist.plan(digest, state, self._strategies, findings)
                 self._strategist.apply(update)
                 self._strategies = update.per_coder_strategy
-            events.append_event(
-                self._store, self._run_id, events.DIRECTOR_ROUND,
-                payload={"round": round_index, "state": state.value,
-                         "best": digest.best_score, "benchmarks_run": result.benchmarks_run,
-                         "cost_usd": result.cost_usd,
-                         "cum_benchmarks": self.cumulative_benchmarks,
-                         "cum_cost": self.cumulative_cost, "researched": bool(findings)},
-                cost_usd=result.cost_usd)
+            payload = {"round": round_index, "state": state.value,
+                       "best": digest.best_score, "benchmarks_run": result.benchmarks_run,
+                       "cost_usd": result.cost_usd,
+                       "cum_benchmarks": self.cumulative_benchmarks,
+                       "cum_cost": self.cumulative_cost, "researched": bool(findings)}
+            if noise_verified is not None:
+                payload["noise_verified"] = noise_verified
+            events.append_event(self._store, self._run_id, events.DIRECTOR_ROUND,
+                                payload=payload, cost_usd=result.cost_usd)
+            verified_note = ("" if noise_verified is None
+                             else f" · noise_verified {str(noise_verified).lower()}")
             self._emit(f"round {round_index}: {state.value} · best {digest.best_score}"
-                       f" · Σ {self.cumulative_benchmarks} benches"
+                       f"{verified_note} · Σ {self.cumulative_benchmarks} benches"
                        f" ${self.cumulative_cost:.2f}")
             history.append(digest)
             # advance the improvement baseline only on a confirmed improving round

@@ -14,6 +14,8 @@ from chi.director.loop import Director
 from chi.director.research import Researcher
 from chi.director.round import RoundRunner
 from chi.director.strategy import Strategist
+from chi.eval.noise import NoiseGuard
+from chi.eval.popcorn import PopcornBackend
 from chi.orchestrator.loop import start_run
 from chi.store.db import Store
 
@@ -56,8 +58,19 @@ class DirectorHandle:
             coders = resolve_coders(self._fleet)
             per_coder = {c.id: resolve_strategy(problem, c, i)
                          for i, c in enumerate(coders)}
+            # leaderboard-backed problems get a median-of-N noise guard so the
+            # director verifies apparent wins against ~8% benchmark noise; local
+            # evals already median over score.repeats, so they run unguarded
+            noise_guard = None
+            if problem.leaderboard and problem.benchmark_cmd:
+                backend = PopcornBackend(problem.leaderboard, problem.benchmark_cmd or "",
+                                         problem.submit_cmd or "")
+                noise_guard = NoiseGuard(backend.benchmark, n=3, direction=direction,
+                                         promote_margin_pct=problem.promote_margin_pct)
             self._director = Director(store, self.run_id, self.run_dir, runner, strategist,
                                       researcher, direction=direction, emit=self._emit,
+                                      noise_guard=noise_guard,
+                                      candidate_name=problem.candidate,
                                       per_coder_strategy=per_coder)
             self.ready.set()
             self._director.run(self.stop_event)
