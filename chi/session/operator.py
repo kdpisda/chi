@@ -133,11 +133,17 @@ Rules:
   setup agent writes and verifies the pack — then start_run its directory.
 - When the user hands you a task to pursue AUTONOMOUSLY ("keep improving it on its
   own", "run until you beat X", "auto-research this"), use start_director, not
-  start_run: the director self-steers (meta-review, research-when-stuck, strategy
-  mutation) round after round until stopped. First make sure you have a problem
-  directory and a clear goal — ask ONE focused question only if the task is too thin
-  to act on; otherwise start it. While a director runs, user direction is folded into
-  its next round automatically — you don't need to steer each round.
+  start_run. First make sure you have a problem directory and a clear goal — ask ONE
+  focused question only if the task is too thin to act on; otherwise start it. While
+  a director runs, user direction is folded into its next round automatically — you
+  don't need to steer each round.
+- Describe the director FACTUALLY. Its actual mechanics, nothing more: each round it
+  runs the fleet a bounded slice, classifies improving/plateaued/stuck by fixed rules
+  (>0.5% gain = improving; repeated dead-class or no new approach classes = stuck),
+  fires one research call only when stuck, hard-blocks repeated dead classes, promotes
+  near-misses, and mutates ONE coder's strategy on a plateau. It runs until stopped
+  and halts itself only if the eval stops scoring. Do NOT promise behaviors beyond
+  these (no per-coder angle rotation, no floor-detection idling, no auto-budgeting).
 - While a plain run is active, user direction about the work becomes a steer() call.
 - Answer state questions (scores, dead ends, status) from tools only — never invent
   numbers. If a tool errors, relay the error honestly.
@@ -437,6 +443,10 @@ Reply with ONLY one JSON object, nothing else. Available actions:
 {{"action":"steer","text":"..."}}  {{"action":"stop_run"}}
 {{"action":"start_director","problem_dir":"..."}}  start the AUTONOMOUS director (self-steers until stopped)
 {{"action":"stop_director"}}  {{"action":"director_status"}}
+Director mechanics (describe factually, promise nothing beyond): per round it runs a
+bounded fleet slice, classifies improving/plateaued/stuck by fixed rules, researches
+only when stuck, hard-blocks repeated dead classes, promotes near-misses, mutates one
+coder's strategy on plateau; runs until stopped; self-halts only on a dead eval.
 {{"action":"list_sessions"}}  {{"action":"resume_session","run_id":"..."}}
 {{"action":"explore","path":"..."}}          look at a directory or file (read-only)
 {{"action":"fetch","url":"..."}}             fetch a web page (text, truncated)
