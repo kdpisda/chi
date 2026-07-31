@@ -5,19 +5,80 @@ baseline is measured up front and every REAL slice gets meta-reviewed), then
 runs the Director loop via run_slice until stopped.
 """
 
+import json
+import math
+import shlex
+import subprocess
+import sys
 import threading
 from pathlib import Path
 from typing import Callable
 
-from chi.config import FleetConfig, load_problem, resolve_coders, resolve_strategy
+from chi.config import (FleetConfig, ProblemConfig, load_problem, resolve_coders,
+                        resolve_strategy)
 from chi.director.loop import Director
 from chi.director.research import Researcher
 from chi.director.round import RoundRunner
 from chi.director.strategy import Strategist
 from chi.eval.noise import NoiseGuard
-from chi.eval.popcorn import PopcornBackend
+from chi.eval.popcorn import BenchResult, PopcornBackend
 from chi.orchestrator.loop import start_run
 from chi.store.db import Store
+
+
+def local_benchmark_fn(problem: ProblemConfig) -> Callable[[Path], BenchResult]:
+    """One local benchmark sample for the NoiseGuard: run the problem's benchmark
+    entrypoint once in the candidate's directory (the exported-champion workdir)
+    and parse the trailing {"score": <float>} line, exactly like chi.eval.runner.
+    """
+
+    def bench(candidate: Path) -> BenchResult:
+        candidate = Path(candidate)
+        cmd = problem.entrypoints.benchmark.format(
+            candidate=candidate.name, python=sys.executable)
+        try:
+            proc = subprocess.run(shlex.split(cmd), cwd=candidate.parent,
+                                  capture_output=True, text=True,
+                                  timeout=problem.timeout_seconds)
+        except subprocess.TimeoutExpired:
+            return BenchResult(False, None, "benchmark timed out")
+        if proc.returncode != 0:
+            out = ((proc.stdout or "") + " " + (proc.stderr or "")).strip()
+            return BenchResult(False, None, f"benchmark failed: {out[:300]}")
+        try:
+            score = float(json.loads(proc.stdout.strip().splitlines()[-1])["score"])
+        except (IndexError, KeyError, TypeError, ValueError):
+            return BenchResult(False, None,
+                               f"no score parsed from: {proc.stdout.strip()[:300]}")
+        # same rule as the eval runner: a frozen/negative/inf "runtime" is gaming
+        # or breakage, not speed — reject the measurement
+        if not math.isfinite(score) or score <= 0:
+            return BenchResult(False, None,
+                               f"invalid score {score!r}: must be finite and > 0")
+        return BenchResult(True, score, "ok")
+
+    return bench
+
+
+def build_noise_guard(problem: ProblemConfig, direction: str) -> NoiseGuard | None:
+    """The director's median-of-N guard for this problem, or None if unguardable.
+
+    Leaderboard problems re-benchmark through popcorn (~8% B200 noise). Local
+    problems get a guard over their own benchmark entrypoint: even with
+    score.repeats medianing inside one eval, the stored score of a noisy bench
+    can still be one lucky draw, so apparent wins are re-sampled before belief.
+    """
+    if problem.leaderboard:
+        if not problem.benchmark_cmd:
+            return None
+        backend = PopcornBackend(problem.leaderboard, problem.benchmark_cmd or "",
+                                 problem.submit_cmd or "")
+        return NoiseGuard(backend.benchmark, n=3, direction=direction,
+                          promote_margin_pct=problem.promote_margin_pct)
+    if problem.score.repeats >= 1:
+        return NoiseGuard(local_benchmark_fn(problem), n=3, direction=direction,
+                          promote_margin_pct=problem.promote_margin_pct)
+    return None
 
 
 class DirectorHandle:
@@ -58,15 +119,10 @@ class DirectorHandle:
             coders = resolve_coders(self._fleet)
             per_coder = {c.id: resolve_strategy(problem, c, i)
                          for i, c in enumerate(coders)}
-            # leaderboard-backed problems get a median-of-N noise guard so the
-            # director verifies apparent wins against ~8% benchmark noise; local
-            # evals already median over score.repeats, so they run unguarded
-            noise_guard = None
-            if problem.leaderboard and problem.benchmark_cmd:
-                backend = PopcornBackend(problem.leaderboard, problem.benchmark_cmd or "",
-                                         problem.submit_cmd or "")
-                noise_guard = NoiseGuard(backend.benchmark, n=3, direction=direction,
-                                         promote_margin_pct=problem.promote_margin_pct)
+            # median-of-N noise guard: popcorn-backed on a leaderboard, the
+            # problem's own benchmark entrypoint locally — so apparent wins on
+            # ANY noisy eval are verified before the director believes them
+            noise_guard = build_noise_guard(problem, direction)
             self._director = Director(store, self.run_id, self.run_dir, runner, strategist,
                                       researcher, direction=direction, emit=self._emit,
                                       noise_guard=noise_guard,

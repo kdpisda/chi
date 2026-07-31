@@ -1,0 +1,20 @@
+name: noisy_bench
+description: >
+  Minimize the operation count of solve(xs) -> prefix sums, measured by a
+  deliberately NOISY benchmark: each run scales a deterministic op-count base
+  by a ~±10% factor hashed from the candidate source plus a per-run counter.
+  A single sample can lie, so this pack exercises the Director's median-of-N
+  NoiseGuard end to end. repeats is 1 on purpose: every re-benchmark is ONE
+  noisy sample, and only the guard's median separates luck from progress.
+candidate: candidate.py
+entrypoints:
+  correctness: "{python} check.py {candidate} --seed {seed}"
+  benchmark: "{python} bench.py {candidate}"
+score:
+  metric: noisy_ops
+  direction: minimize
+  repeats: 1
+correctness:
+  seeds: [3, 17]
+  tolerance: 1.0e-6
+timeout_seconds: 60
