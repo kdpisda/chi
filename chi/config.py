@@ -96,6 +96,12 @@ class ProblemConfig(BaseModel):
     # coder-config `strategy` field, which is problem-agnostic: a global CUDA
     # prior leaking onto an unrelated problem produced hallucinated dead ends.
     strategies: list[str] = Field(default_factory=list)
+    # run correctness+benchmark inside a sandbox so a hostile candidate can't
+    # reach the host (a dogfood candidate froze the benchmark's perf_counter).
+    # "docker-cli" is deliberately excluded: it mounts vendor auth, which must
+    # never be exposed to untrusted candidate code.
+    eval_sandbox: Literal["none", "docker"] = "none"
+    eval_sandbox_image: str | None = None  # docker image when eval_sandbox=docker
 
 
 def resolve_strategy(problem: "ProblemConfig", coder: "CoderCfg", index: int) -> str:
