@@ -84,6 +84,7 @@ class ProblemConfig(BaseModel):
     # authoritative tier: an external leaderboard reached via popcorn-cli.
     # benchmark = parallel proxy scoring; submit = serialized, rationed, approved.
     leaderboard: str | None = None
+    eval_backend: str = "popcorn"  # named backend from chi.eval.registry
     benchmark_cmd: str | None = None  # popcorn-cli benchmark; template with {candidate}
     submit_cmd: str | None = None  # popcorn-cli leaderboard submit
     ration_per_window: int = 1
