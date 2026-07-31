@@ -1,3 +1,4 @@
+import json
 import threading
 
 from chi.director.types import DirectorState, RoundDigest, RoundResult, StrategyUpdate
@@ -138,6 +139,111 @@ def test_director_halts_on_dead_eval(tmp_path, monkeypatch):
     assert len(list_events(store, "r1", "DIRECTOR_ROUND")) == 3
     assert director.halted_reason is not None
     assert "no scored" in director.halted_reason
+
+
+def _improving_digest_factory(prev_bests):
+    """Digest fn: round 0 scores 700, later rounds 636 — an apparent improvement."""
+
+    def digest(store_, run_id_, round_index, prev_best, direction="minimize",
+               noise_band_pct=8.0):
+        prev_bests.append(prev_best)
+        score = 700.0 if round_index == 0 else 636.0
+        return RoundDigest(round_index=round_index, best_score=score,
+                           champion_score=score, prev_best=prev_best)
+
+    return digest
+
+
+def test_director_believes_improvement_confirmed_by_noise_guard(tmp_path, monkeypatch):
+    # An apparent win must survive median-of-N re-benchmarking before the director
+    # trusts it: the same kernel measured 636/652/686µs across runs (~8% noise).
+    store = _seed_run(tmp_path)
+    import chi.director.loop as loopmod
+    from chi.eval.noise import NoiseGuard
+    from chi.eval.popcorn import BenchResult
+
+    prev_bests = []
+    monkeypatch.setattr(loopmod, "build_digest", _improving_digest_factory(prev_bests))
+    stop = threading.Event()
+    runner = _FakeRunner([700.0, 636.0, 636.0], stop, stop_after=3)
+
+    benched = []
+
+    def confirming_benchmark(candidate):  # median 636 clears 700 by the margin
+        benched.append(candidate)
+        return BenchResult(ok=True, score_us=636.0, detail="")
+
+    lines = []
+    director = loopmod.Director(
+        store, "r1", tmp_path / "r", runner, _FakeStrategist(), researcher=None,
+        emit=lines.append,
+        noise_guard=NoiseGuard(confirming_benchmark, n=3, promote_margin_pct=0.5))
+    director.run(stop)
+
+    rounds = list_events(store, "r1", "DIRECTOR_ROUND")
+    payload = json.loads(rounds[1]["payload_json"])
+    assert payload["state"] == "improving"
+    assert payload["noise_verified"] is True
+    assert "noise_verified true" in lines[1]
+    # the guard re-benchmarked the exported champion in the shared workdir
+    assert benched == [tmp_path / "r" / "workdir" / "candidate.py"] * 3
+    # baseline advanced past the verified improvement (round 2 sees 636)
+    assert prev_bests == [None, 700.0, 636.0]
+    # 3 runner benchmarks + 3 verification benchmarks
+    assert director.cumulative_benchmarks == 6
+
+
+def test_director_demotes_improvement_refuted_by_noise_guard(tmp_path, monkeypatch):
+    # The guard's median lands at champion level: the "improvement" was a lucky-low
+    # sample, so the round is demoted to plateaued and the baseline does NOT advance.
+    store = _seed_run(tmp_path)
+    import chi.director.loop as loopmod
+    from chi.eval.noise import NoiseGuard
+    from chi.eval.popcorn import BenchResult
+
+    prev_bests = []
+    monkeypatch.setattr(loopmod, "build_digest", _improving_digest_factory(prev_bests))
+    stop = threading.Event()
+    runner = _FakeRunner([700.0, 636.0, 636.0], stop, stop_after=3)
+
+    def refuting_benchmark(candidate):  # median 700 == champion: not a real win
+        return BenchResult(ok=True, score_us=700.0, detail="")
+
+    lines = []
+    director = loopmod.Director(
+        store, "r1", tmp_path / "r", runner, _FakeStrategist(), researcher=None,
+        emit=lines.append,
+        noise_guard=NoiseGuard(refuting_benchmark, n=3, promote_margin_pct=0.5))
+    director.run(stop)
+
+    payload = json.loads(list_events(store, "r1", "DIRECTOR_ROUND")[1]["payload_json"])
+    assert payload["state"] == "plateaued"
+    assert payload["noise_verified"] is False
+    assert "noise_verified false" in lines[1]
+    # baseline did not advance on the refuted win (rounds 1 AND 2 still see 700)
+    assert prev_bests == [None, 700.0, 700.0]
+
+
+def test_director_without_guard_trusts_improvement_unchanged(tmp_path, monkeypatch):
+    # No guard configured (e.g. local evals already median over repeats): the
+    # improving round is believed as-is and no noise_verified key is recorded.
+    store = _seed_run(tmp_path)
+    import chi.director.loop as loopmod
+
+    prev_bests = []
+    monkeypatch.setattr(loopmod, "build_digest", _improving_digest_factory(prev_bests))
+    stop = threading.Event()
+    runner = _FakeRunner([700.0, 636.0, 636.0], stop, stop_after=3)
+
+    director = loopmod.Director(store, "r1", tmp_path / "r", runner, _FakeStrategist(),
+                                researcher=None, emit=lambda line: None)
+    director.run(stop)
+
+    payload = json.loads(list_events(store, "r1", "DIRECTOR_ROUND")[1]["payload_json"])
+    assert payload["state"] == "improving"
+    assert "noise_verified" not in payload
+    assert prev_bests == [None, 700.0, 636.0]
+    assert director.cumulative_benchmarks == 3
 
 
 def test_director_researches_when_stuck(tmp_path, monkeypatch):
