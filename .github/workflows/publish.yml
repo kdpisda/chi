@@ -1,10 +1,10 @@
 name: publish
 
-# Publish chi-harness to PyPI when a GitHub Release is published.
+# Publish getchi to PyPI when a GitHub Release is published.
 #
 # Uses PyPI Trusted Publishing (OIDC) — NO API token is stored in the repo.
 # One-time setup on PyPI (Account → Publishing → Add a pending publisher):
-#   PyPI project name: chi-harness
+#   PyPI project name: getchi
 #   Owner:  kdpisda        Repository: chi
 #   Workflow filename: publish.yml     Environment: pypi
 # The `id-token: write` permission below is what lets PyPI verify this workflow

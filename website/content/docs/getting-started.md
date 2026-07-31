@@ -14,15 +14,19 @@ weight: 10
 
 ## Install
 
-chi installs from source:
+Install chi from PyPI (the distribution is named `getchi`; the command stays `chi`):
+
+```sh
+uv tool install getchi
+```
+
+From source, for development:
 
 ```sh
 git clone https://github.com/kdpisda/chi
 cd chi
-uv tool install --editable .
+uv tool install --editable .   # or: uv venv --python 3.12 && uv pip install -e ".[dev]"
 ```
-
-Or into a virtualenv: `uv venv --python 3.12 && uv pip install -e ".[dev]"`.
 
 ## Open a session
 

@@ -9,7 +9,7 @@
       <a class="btn primary" href="{{ (site.GetPage "/docs/getting-started").RelPermalink }}">Get started</a>
       <a class="btn" href="{{ site.Params.github }}" target="_blank" rel="noopener">GitHub &nearr;</a>
     </div>
-    <p class="install-hint"><span class="dollar">$</span> uv tool install --editable . &nbsp;·&nbsp; <span class="dollar">$</span> chi</p>
+    <p class="install-hint"><span class="dollar">$</span> uv tool install getchi &nbsp;·&nbsp; <span class="dollar">$</span> chi</p>
   </div>
 </section>
 
@@ -69,9 +69,7 @@
   <div class="cols">
     <div>
       <h3><span>$</span> install &amp; start</h3>
-{{ highlight `git clone https://github.com/kdpisda/chi
-cd chi
-uv tool install --editable .
+{{ highlight `uv tool install getchi
 chi` "sh" }}
       <p>Bare <code>chi</code> opens a full-terminal session: scrolling transcript,
       slash-command dropdown, live status bar, fuzzy pickers.

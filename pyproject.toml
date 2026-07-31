@@ -1,5 +1,5 @@
 [project]
-name = "chi-harness"
+name = "getchi"
 dynamic = ["version"]  # single-sourced from chi/__init__.py:__version__
 description = "Chi (χ) — an open-source autoresearch harness CLI"
 readme = "README.md"
