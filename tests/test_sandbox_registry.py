@@ -5,7 +5,8 @@ import pytest
 
 from chi.agents.registry import build_adapter, known_adapters
 from chi.agents.sandbox import (
-    DockerSandbox, LocalSandbox, build_docker_command, make_sandbox,
+    DockerSandbox, LocalSandbox, build_docker_command, cli_auth_mounts,
+    make_sandbox,
 )
 from chi.config import CoderCfg
 
@@ -66,6 +67,74 @@ def test_make_sandbox_kinds() -> None:
         make_sandbox("docker")  # missing image
     with pytest.raises(ValueError):
         make_sandbox("firecracker")  # unknown
+
+
+# --- docker-cli preset --------------------------------------------------------
+
+def test_docker_command_readonly_mounts(tmp_path: Path) -> None:
+    auth = tmp_path / ".claude"
+    auth.mkdir()
+    cmd = build_docker_command(
+        "img", ["x"], tmp_path,
+        readonly_mounts=[(str(auth), "/home/agent/.claude")])
+    assert f"{auth.resolve()}:/home/agent/.claude:ro" in cmd
+    # workdir mount stays read-write (no :ro suffix)
+    assert f"{tmp_path.resolve()}:/workspace" in cmd
+
+
+def test_docker_command_readonly_and_extra_mounts_coexist(tmp_path: Path) -> None:
+    cmd = build_docker_command(
+        "img", ["x"], tmp_path,
+        extra_mounts=[(str(tmp_path), "/extra")],
+        readonly_mounts=[(str(tmp_path), "/ro")])
+    assert f"{tmp_path.resolve()}:/extra" in cmd
+    assert f"{tmp_path.resolve()}:/ro:ro" in cmd
+
+
+def test_cli_auth_mounts_only_existing(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".grok").mkdir()
+    # ~/.codex deliberately absent
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    mounts = cli_auth_mounts()
+    assert (str(tmp_path / ".claude"), "/home/agent/.claude") in mounts
+    assert (str(tmp_path / ".grok"), "/home/agent/.grok") in mounts
+    assert all("/home/agent/.codex" != cont for _, cont in mounts)
+
+
+def test_cli_auth_mounts_empty_when_no_auth(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert cli_auth_mounts() == []
+
+
+def test_make_sandbox_docker_cli(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / ".claude").mkdir()
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    sb = make_sandbox("docker-cli", image="chi-agent")
+    assert isinstance(sb, DockerSandbox)
+    assert sb.network == "bridge"  # CLI needs its vendor API
+    assert (str(tmp_path / ".claude"), "/home/agent/.claude") in sb.readonly_mounts
+
+
+def test_make_sandbox_docker_cli_requires_image() -> None:
+    with pytest.raises(ValueError):
+        make_sandbox("docker-cli")  # missing image
+
+
+def test_docker_cli_sandbox_renders_ro_auth_mount(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / ".claude").mkdir()
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    seen = {}
+
+    def runner(argv, **kw):
+        seen["argv"] = argv
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    sb = make_sandbox("docker-cli", image="chi-agent")
+    sb.runner = runner
+    sb.run(["claude", "-p", "x"], tmp_path, {}, 10)
+    assert f"{(tmp_path / '.claude').resolve()}:/home/agent/.claude:ro" in seen["argv"]
+    assert seen["argv"][seen["argv"].index("--network") + 1] == "bridge"
 
 
 # --- registry ---------------------------------------------------------------
