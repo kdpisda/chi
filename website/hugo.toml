@@ -13,6 +13,7 @@ enableRobotsTXT = true
   description = "chi (χ) is an open-source autoresearch harness: point a fleet of coding agents at any problem with a programmatic evaluator and let it improve autonomously until you stop it."
   github = "https://github.com/kdpisda/chi"
   author = "KD"
+  author_url = "https://kdpisda.in"
 
 [menus]
   [[menus.main]]
