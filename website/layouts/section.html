@@ -1,0 +1,20 @@
+{{ define "main" }}
+<div class="docs-wrap">
+  {{ partial "docs-nav.html" . }}
+  <article class="docs-content">
+    <h1>{{ .Title }}</h1>
+    {{ with .Description }}<p class="desc">{{ . }}</p>{{ end }}
+    {{ .Content }}
+    <div class="docs-index">
+      {{ range site.Menus.docs }}
+        {{ with .Page }}
+        <a class="card" href="{{ .RelPermalink }}">
+          <h3>{{ .Title }}</h3>
+          <p>{{ .Description }}</p>
+        </a>
+        {{ end }}
+      {{ end }}
+    </div>
+  </article>
+</div>
+{{ end }}

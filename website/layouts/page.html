@@ -1,0 +1,16 @@
+{{ define "main" }}
+<div class="docs-wrap">
+  {{ partial "docs-nav.html" . }}
+  <article class="docs-content">
+    <h1>{{ .Title }}</h1>
+    {{ with .Description }}<p class="desc">{{ . }}</p>{{ end }}
+    {{ .Content }}
+    {{ if eq .Section "docs" }}
+    <nav class="docs-prevnext">
+      <span>{{ with .NextInSection }}<a href="{{ .RelPermalink }}">&larr; {{ .Title }}</a>{{ end }}</span>
+      <span>{{ with .PrevInSection }}<a href="{{ .RelPermalink }}">{{ .Title }} &rarr;</a>{{ end }}</span>
+    </nav>
+    {{ end }}
+  </article>
+</div>
+{{ end }}

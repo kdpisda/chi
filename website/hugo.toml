@@ -1,0 +1,48 @@
+# chi website — build with: hugo --source website
+# baseURL is a placeholder; override at deploy time with `hugo -b <url>`.
+baseURL = "https://kdpisda.github.io/chi/"
+locale = "en-us"
+title = "chi — an autoresearch harness"
+
+disableKinds = ["taxonomy", "term", "rss"]
+enableRobotsTXT = true
+
+[params]
+  description = "chi (χ) is an open-source autoresearch harness: point a fleet of coding agents at any problem with a programmatic evaluator and let it improve autonomously until you stop it."
+  github = "https://github.com/kdpisda/chi"
+  author = "KD"
+
+[menus]
+  [[menus.main]]
+    name = "Docs"
+    pageRef = "/docs"
+    weight = 10
+  [[menus.main]]
+    name = "GitHub"
+    url = "https://github.com/kdpisda/chi"
+    weight = 20
+
+  # Docs sidebar, in reading order.
+  [[menus.docs]]
+    name = "Getting started"
+    pageRef = "/docs/getting-started"
+    weight = 10
+  [[menus.docs]]
+    name = "Concepts"
+    pageRef = "/docs/concepts"
+    weight = 20
+  [[menus.docs]]
+    name = "Problems & evaluators"
+    pageRef = "/docs/problems"
+    weight = 30
+  [[menus.docs]]
+    name = "Security"
+    pageRef = "/docs/security"
+    weight = 40
+
+[markup]
+  [markup.highlight]
+    style = "github-dark"     # inline styles; bg #0d1117 matches the site palette
+    lineNos = false
+  [markup.goldmark.renderer]
+    unsafe = false

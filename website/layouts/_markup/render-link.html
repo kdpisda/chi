@@ -1,0 +1,9 @@
+{{- /* Resolve site-absolute markdown links against baseURL so the site works
+       under a subpath deploy; open external links in a new tab. */ -}}
+{{- $dest := .Destination -}}
+{{- $isExternal := or (strings.HasPrefix $dest "http://") (strings.HasPrefix $dest "https://") -}}
+{{- if and (not $isExternal) (strings.HasPrefix $dest "/") -}}
+  {{- $dest = relURL (strings.TrimPrefix "/" $dest) -}}
+{{- end -}}
+<a href="{{ $dest }}"{{ if $isExternal }} target="_blank" rel="noopener"{{ end }}>{{ .Text }}</a>
+{{- /* chomp trailing newline */ -}}

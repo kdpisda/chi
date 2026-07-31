@@ -1,0 +1,10 @@
+<header class="site-header">
+  <div class="inner">
+    <a class="wordmark" href="{{ site.Home.RelPermalink }}"><span class="glyph">χ</span>chi</a>
+    <nav class="site-nav">
+      {{ range site.Menus.main }}
+        <a href="{{ .URL }}"{{ if hasPrefix .URL "http" }} target="_blank" rel="noopener"{{ end }}{{ if and (ne $.RelPermalink nil) (eq .URL $.RelPermalink) }} aria-current="true"{{ end }}>{{ .Name }}</a>
+      {{ end }}
+    </nav>
+  </div>
+</header>

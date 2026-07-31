@@ -1,0 +1,94 @@
+{{ define "main" }}
+
+<section class="hero">
+  <div class="inner">
+    <p class="eyebrow">{{ .Params.hero.eyebrow }}</p>
+    <h1>{{ .Params.hero.heading | markdownify }}</h1>
+    <p class="lede">{{ .Params.hero.lede | markdownify }}</p>
+    <div class="actions">
+      <a class="btn primary" href="{{ (site.GetPage "/docs/getting-started").RelPermalink }}">Get started</a>
+      <a class="btn" href="{{ site.Params.github }}" target="_blank" rel="noopener">GitHub &nearr;</a>
+    </div>
+    <p class="install-hint"><span class="dollar">$</span> uv tool install --editable . &nbsp;·&nbsp; <span class="dollar">$</span> chi</p>
+  </div>
+</section>
+
+<section class="terminal-section" aria-label="Example chi session">
+  {{ partial "terminal.html" . }}
+</section>
+
+<section class="section" id="director">
+  <p class="section-label">headline feature</p>
+  <h2>One task in. Research until you say stop.</h2>
+  <p class="sub">You don't babysit chi. Hand its operator a goal in plain language and the
+  autonomous director takes it from there.</p>
+
+  <div class="director-card">
+    <h3>The <code>director</code> loop</h3>
+    <p>Each round, the director runs the fleet a bounded slice, builds a deterministic
+    digest from the store, and classifies the round <strong>improving / plateaued /
+    stuck</strong> by explicit rules — the LLM's read is advisory, the rule decides, so
+    the loop can't talk itself in circles. Stuck triggers one web-research call for
+    genuinely different techniques. Then the strategist rewrites <code>steering.md</code>:
+    dead approach classes get hard-blocked, near-misses get promoted, and the weakest
+    coder gets a new strategy. It runs until you stop it — and ranked leaderboard
+    submissions always stay in your hands.</p>
+    <div class="round-pipeline" aria-label="Director round pipeline">
+      <span class="step"><b>1</b> run</span><span class="arrow">→</span>
+      <span class="step"><b>2</b> review</span><span class="arrow">→</span>
+      <span class="step"><b>3</b> classify</span><span class="arrow">→</span>
+      <span class="step"><b>4</b> research</span><span class="arrow">→</span>
+      <span class="step"><b>5</b> steer</span><span class="arrow">↻</span>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="features">
+  <p class="section-label">what's in the box</p>
+  <h2>Built from a real fleet's postmortem.</h2>
+  <p class="sub">Every mechanism exists because a manually-run agent fleet failed without it:
+  re-explored dead ends, wasted authoritative evals, silent stalls, no way to steer.</p>
+
+  <div class="features">
+    {{ range .Params.features }}
+    <div class="feature">
+      <p class="tag">{{ .tag }}</p>
+      <h3>{{ .title }}</h3>
+      <p>{{ .body | markdownify }}</p>
+    </div>
+    {{ end }}
+  </div>
+</section>
+
+<section class="section quickstart" id="quickstart">
+  <p class="section-label">quickstart</p>
+  <h2>Talking to it is the interface.</h2>
+  <p class="sub">Install, type <code>chi</code>, and describe what you want. Slash commands
+  exist for the deliberate moves; free text goes to the operator.</p>
+
+  <div class="cols">
+    <div>
+      <h3><span>$</span> install &amp; start</h3>
+{{ highlight `git clone https://github.com/kdpisda/chi
+cd chi
+uv tool install --editable .
+chi` "sh" }}
+      <p>Bare <code>chi</code> opens a full-terminal session: scrolling transcript,
+      slash-command dropdown, live status bar, fuzzy pickers.
+      <code>chi --plain</code> gives a line-based REPL for scripts and SSH.</p>
+    </div>
+    <div>
+      <h3><span>›</span> inside the session</h3>
+{{ highlight `/vendors            pick providers
+/models             pick coder models
+/run fleet.yaml     start a run
+/resume             reattach to any past session
+just type           free text steers the fleet` "text" }}
+      <p>Every session verb also works non-interactively —
+      <code>chi run</code>, <code>chi steer</code>, <code>chi status</code>,
+      <code>chi ledger</code>, <code>chi champion</code> — for CI and scripts.</p>
+    </div>
+  </div>
+</section>
+
+{{ end }}
