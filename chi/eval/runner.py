@@ -87,6 +87,11 @@ def evaluate(
     noise_std: float | None = None
     if correct:
         samples: list[float] = []
+        # a benchmark failure is an EVAL failure, not candidate incorrectness —
+        # the candidate already passed the correctness gate. Marking it incorrect
+        # poisoned the ledger live (the champion kernel recorded correct=0 when
+        # the leaderboard closed and every popcorn benchmark started erroring).
+        bench_failed = False
         cmd = problem.entrypoints.benchmark.format(
             candidate=problem.candidate, python=sys.executable
         )
@@ -94,15 +99,15 @@ def evaluate(
             try:
                 proc = _run(cmd, workdir, problem.timeout_seconds)
             except subprocess.TimeoutExpired:
-                correct = False
+                bench_failed = True
                 detail = "benchmark timeout"
                 break
             if proc.returncode != 0:
-                correct = False
+                bench_failed = True
                 detail = f"benchmark failed: {proc.stderr.strip()}"[:500]
                 break
             samples.append(float(json.loads(proc.stdout.strip().splitlines()[-1])["score"]))
-        if samples and correct:
+        if samples and not bench_failed:
             score_value = statistics.median(samples)
             noise_std = statistics.pstdev(samples) if len(samples) > 1 else 0.0
 

@@ -569,8 +569,12 @@ class SessionEngine:
         if self._director is None:
             return ["no director this session"]
         d = self._director
-        return [f"director {'alive' if d.alive else 'stopped'} run={d.run_id}"
-                f" · Σ {d.cumulative_benchmarks} benches ${d.cumulative_cost:.2f}"]
+        lines = [f"director {'alive' if d.alive else 'stopped'} run={d.run_id}"
+                 f" · Σ {d.cumulative_benchmarks} benches ${d.cumulative_cost:.2f}"]
+        halted = getattr(getattr(d, "_director", None), "halted_reason", None)
+        if halted:
+            lines.append(f"⚠ halted: {halted}")
+        return lines
 
     def _launch(self, fleet, source: str) -> list[str]:
         if self.has_active_run():

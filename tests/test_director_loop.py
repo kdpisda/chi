@@ -104,6 +104,42 @@ def test_director_skips_brain_when_nothing_changed(tmp_path, monkeypatch):
     assert strat.calls == 1
 
 
+def test_director_halts_on_dead_eval(tmp_path, monkeypatch):
+    # If K consecutive rounds end with NO scored champion (best is None), the eval
+    # itself is broken — e.g. the leaderboard CLOSED and every benchmark errors —
+    # so halt loudly instead of burning coder iterations forever under
+    # run-until-stopped. (Found live: cholesky deadline passed 2026-07-30.)
+    store = _seed_run(tmp_path)
+    import chi.director.loop as loopmod
+
+    def none_digest(store_, run_id_, round_index, prev_best, direction="minimize",
+                    noise_band_pct=8.0):
+        return RoundDigest(round_index=round_index, best_score=None,
+                           champion_score=None, prev_best=None)
+
+    monkeypatch.setattr(loopmod, "build_digest", none_digest)
+    stop = threading.Event()
+
+    class _Runner:
+        def __init__(self):
+            self.i = 0
+
+        def __call__(self, iterations):
+            self.i += 1
+            return RoundResult(round_index=self.i - 1, new_experiments=[],
+                               best_score=None, benchmarks_run=1, cost_usd=0.0)
+
+    director = loopmod.Director(store, "r1", tmp_path / "r", _Runner(),
+                                _FakeStrategist(), researcher=None,
+                                emit=lambda line: None, idle_sleep_seconds=0.0,
+                                dead_eval_rounds=3)
+    director.run(stop)  # must return on its own — stop_event never set
+
+    assert len(list_events(store, "r1", "DIRECTOR_ROUND")) == 3
+    assert director.halted_reason is not None
+    assert "no scored" in director.halted_reason
+
+
 def test_director_researches_when_stuck(tmp_path, monkeypatch):
     store = _seed_run(tmp_path)
     import chi.director.loop as loopmod
