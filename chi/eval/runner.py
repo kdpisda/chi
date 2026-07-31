@@ -2,6 +2,7 @@
 
 import json
 import math
+import os
 import shlex
 import statistics
 import subprocess
@@ -9,6 +10,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from chi.agents.sandbox import Sandbox, make_sandbox
 from chi.config import ProblemConfig
 from chi.eval.hashing import code_hash
 from chi.store import ledger
@@ -33,6 +35,14 @@ def _run(cmd: str, workdir: Path, timeout: int) -> subprocess.CompletedProcess:
     )
 
 
+def _dispatch(cmd: str, workdir: Path, timeout: int,
+              sandbox: Sandbox | None) -> subprocess.CompletedProcess:
+    """Route one entrypoint run: direct host subprocess, or through the sandbox."""
+    if sandbox is None:
+        return _run(cmd, workdir, timeout)
+    return sandbox.run(shlex.split(cmd), workdir, dict(os.environ), timeout)
+
+
 def evaluate(
     problem: ProblemConfig,
     workdir: Path,
@@ -43,8 +53,15 @@ def evaluate(
     task_id: str | None = None,
     parent_code_hash: str | None = None,
     strategy: str | None = None,
+    sandbox: Sandbox | None = None,
 ) -> EvalResult:
-    """Evaluate the candidate in workdir; records to the store when attached."""
+    """Evaluate the candidate in workdir; records to the store when attached.
+
+    An untrusted candidate can attack the eval itself (a dogfood candidate froze
+    the benchmark's perf_counter and hijacked `list` in the caller frame). When
+    `problem.eval_sandbox` opts in, correctness AND benchmark subprocesses run
+    inside a sandbox; `sandbox` is the injection seam for tests.
+    """
     workdir = Path(workdir)
     candidate = workdir / problem.candidate
     source = candidate.read_text()
@@ -60,17 +77,23 @@ def evaluate(
                 detail="cached", cached=True,
             )
 
+    if sandbox is None and problem.eval_sandbox != "none":
+        sandbox = make_sandbox(problem.eval_sandbox, problem.eval_sandbox_image)
+    # {python} resolves to the running interpreter so problems don't depend
+    # on a bare `python` being on PATH (it isn't in uv tool environments).
+    # Inside a sandbox, sys.executable is a host path that doesn't exist in
+    # the container — resolve to python3 on the container's PATH instead.
+    python = "python3" if sandbox is not None else sys.executable
+
     seeds_passed: list[int] = []
     detail = ""
     correct = True
     for seed in problem.correctness.seeds:
-        # {python} resolves to the running interpreter so problems don't depend
-        # on a bare `python` being on PATH (it isn't in uv tool environments).
         cmd = problem.entrypoints.correctness.format(
-            candidate=problem.candidate, seed=seed, python=sys.executable
+            candidate=problem.candidate, seed=seed, python=python
         )
         try:
-            proc = _run(cmd, workdir, problem.timeout_seconds)
+            proc = _dispatch(cmd, workdir, problem.timeout_seconds, sandbox)
         except subprocess.TimeoutExpired:
             correct = False
             detail = f"correctness timeout on seed {seed}"
@@ -94,11 +117,11 @@ def evaluate(
         # the leaderboard closed and every popcorn benchmark started erroring).
         bench_failed = False
         cmd = problem.entrypoints.benchmark.format(
-            candidate=problem.candidate, python=sys.executable
+            candidate=problem.candidate, python=python
         )
         for _ in range(problem.score.repeats):
             try:
-                proc = _run(cmd, workdir, problem.timeout_seconds)
+                proc = _dispatch(cmd, workdir, problem.timeout_seconds, sandbox)
             except subprocess.TimeoutExpired:
                 bench_failed = True
                 detail = "benchmark timeout"
