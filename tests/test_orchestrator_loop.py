@@ -100,6 +100,37 @@ def test_watchdog_keeps_agent_that_evaluates_distinct_candidates(tmp_path: Path,
     assert distinct >= 8
 
 
+def test_zero_eval_timeout_steers_next_iteration_to_smaller_edit(
+        tmp_path: Path, monkeypatch) -> None:
+    # Observed live: a coder editing a 97KB kernel lost whole iterations to the
+    # 600s timeout with 0 evals, then repeated the same doomed large edit. The
+    # very next seed must carry a mutation_note steering it to a smaller edit.
+    from chi.agents.protocol import IterationOutcome
+    from chi.agents.scripted import ScriptedAdapter
+    from chi.eval.runner import evaluate
+
+    seed_notes: list[str] = []
+
+    def timeout_then_eval(self, seed) -> IterationOutcome:
+        self.ack_steering(seed.steering_hash)
+        self.heartbeat()
+        seed_notes.append(seed.mutation_note)
+        if seed.iteration == 0:
+            return IterationOutcome(evals_run=0, note="timeout")
+        (self.workdir / self.problem.candidate).write_text(GOOD)
+        evaluate(self.problem, self.workdir, store=self.store, run_id=self.run_id,
+                 agent_id=self.agent_id, strategy=seed.strategy)
+        return IterationOutcome(evals_run=1)
+
+    monkeypatch.setattr(ScriptedAdapter, "run_iteration", timeout_then_eval)
+    summary = start_run(_fleet(tmp_path, [NAIVE], max_iterations=2),
+                        runs_root=tmp_path / "runs")
+    assert summary.status == "done"
+    assert seed_notes[0] == ""  # iteration 0 seeded clean
+    note = seed_notes[1].lower()
+    assert "timed out" in note and "smallest" in note
+
+
 def test_agent_acked_steering(tmp_path: Path) -> None:
     summary = start_run(_fleet(tmp_path, [NAIVE, GOOD]), runs_root=tmp_path / "runs")
     steering_path = summary.run_dir / "steering.md"

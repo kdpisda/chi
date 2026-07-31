@@ -26,6 +26,15 @@ from chi.store import events, ledger, tasks
 from chi.store.db import Store, utcnow
 
 
+# Fed into the next iteration's seed after a zero-eval timeout: the fastest
+# useful adaptation is a drastically smaller edit, not a retry of the same one.
+TIMEOUT_MUTATION_NOTE = (
+    "Your last attempt TIMED OUT with no measured result. Make the SMALLEST"
+    " possible change this iteration — edit one focused region, not a rewrite —"
+    " so it completes and benchmarks within the time limit."
+)
+
+
 @dataclass
 class RunSummary:
     run_id: str
@@ -194,9 +203,15 @@ def _run_coder(coder, workdir, task_id, strategy, store, run_id, problem, budget
                 events.append_event(
                     store, run_id, events.STATUS, agent_id=coder.id, task_id=task_id,
                     payload={"auto_submit": decision.reason, "submitted": decision.submitted})
+        if outcome.evals_run == 0 and outcome.note == "timeout":
+            # fast-adapt: the iteration timed out before measuring anything, so
+            # repeating the same large edit is pure waste — steer the coder to a
+            # much smaller change NOW, ahead of the watchdog's slower thresholds
+            mutation_note = TIMEOUT_MUTATION_NOTE
         verdict = watchdog.observe_iteration(new_evals=outcome.evals_run,
-                                             candidate_hash=watchdog_hash)
-        if verdict.action == "mutate":
+                                             candidate_hash=watchdog_hash,
+                                             note=outcome.note)
+        if verdict.action == "mutate" and not mutation_note:
             mutation_note = f"WATCHDOG: {verdict.reason}"
         elif verdict.action == "kill":
             events.append_event(store, run_id, events.WATCHDOG_KILL, agent_id=coder.id,

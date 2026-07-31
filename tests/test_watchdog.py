@@ -24,6 +24,33 @@ def test_eval_resets_recency() -> None:
     assert w.observe_iteration(new_evals=0, candidate_hash="h3").action == "ok"
 
 
+def test_zero_eval_timeout_mutates_immediately_then_kills_at_recency_cap() -> None:
+    # A timed-out iteration with no evals must trigger a mutate on the FIRST
+    # occurrence (steer to a smaller edit), well before the recency-half mutate;
+    # the recency kill still reaps a perpetual-timeout coder at the cap.
+    p = PoliciesCfg(eval_recency_iters=4)
+    w = Watchdog(p)
+    verdicts = [w.observe_iteration(new_evals=0, candidate_hash=f"h{i}", note="timeout")
+                for i in range(4)]
+    assert [v.action for v in verdicts] == ["mutate", "mutate", "mutate", "kill"]
+    assert "timed out" in verdicts[0].reason
+    assert "3 in a row" in verdicts[2].reason  # streak escalates in the message
+
+
+def test_non_timeout_zero_eval_does_not_fire_timeout_rule() -> None:
+    w = Watchdog(PoliciesCfg(eval_recency_iters=4))
+    assert w.observe_iteration(new_evals=0, candidate_hash="h0", note="exit 1").action == "ok"
+
+
+def test_eval_resets_timeout_streak() -> None:
+    w = Watchdog(PoliciesCfg(eval_recency_iters=4))
+    w.observe_iteration(new_evals=0, candidate_hash="h1", note="timeout")
+    w.observe_iteration(new_evals=1, candidate_hash="h2")  # resets the streak
+    v = w.observe_iteration(new_evals=0, candidate_hash="h3", note="timeout")
+    assert v.action == "mutate"
+    assert "1 in a row" in v.reason
+
+
 def test_repeated_hash_mutates_then_kills() -> None:
     p = PoliciesCfg(repeat_k=2, eval_recency_iters=100)
     w = Watchdog(p)
