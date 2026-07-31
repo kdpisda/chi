@@ -531,8 +531,14 @@ class SessionEngine:
             return _default_cli_runner(cfg.operator_cli)
         return None  # Strategist/Researcher degrade to deterministic-only
 
-    def start_director(self, problem_dir: str) -> list[str]:
-        """Launch the autonomous research director on a problem directory."""
+    def start_director(self, problem_dir: str, target_score: float | None = None,
+                       cost_ceiling_usd: float | None = None) -> list[str]:
+        """Launch the autonomous research director on a problem directory.
+
+        target_score / cost_ceiling_usd are optional self-stop conditions: the
+        director halts itself when the verified best meets the target or the
+        running spend hits the ceiling (else it runs until /stop).
+        """
         from chi.config import BudgetsCfg, FleetConfig, PoliciesCfg, resolve_coders
         from chi.session.director_runner import DirectorHandle
         from chi.userconfig import load_user_config
@@ -552,9 +558,17 @@ class SessionEngine:
             return [f"error: {exc}"]
         self._director = DirectorHandle(fleet, self.runs_root,
                                         brain_fn=self._director_brain_fn(),
-                                        emit=self.emit_progress)
+                                        emit=self.emit_progress,
+                                        target_score=target_score,
+                                        cost_ceiling_usd=cost_ceiling_usd)
         self._director.start()
-        return [f"director starting on {path.name} — it self-steers until you /stop it;"
+        goal = []
+        if target_score is not None:
+            goal.append(f"best reaches {target_score}")
+        if cost_ceiling_usd is not None:
+            goal.append(f"spend hits ${cost_ceiling_usd:.2f}")
+        tail = (" — stops when " + " or ".join(goal)) if goal else " until you /stop it"
+        return [f"director starting on {path.name}{tail};"
                 " watch the round/state/spend counter, type to interject"]
 
     def stop_director(self) -> list[str]:

@@ -40,6 +40,9 @@ operator exposes `start_director` / `stop_director` / `director_status`.
   next round as a priority directive; it doesn't interrupt the in-flight slice.
   (A bare "stop" halts it — see below — but "stop using recursion" steers.)
 - **Stop** — `/stop` (or a bare "stop"). The director halts at the next round boundary.
+- **Self-stop on a goal** — tell chi a target or a budget and it stops itself:
+  "get it under 500µs then stop" sets a target score; "don't spend over $5" sets a
+  cost ceiling. The director halts (with a reason) the round the goal or cap is met.
 - **The director runs inside the session** (an in-process loop) — keep the session
   open while it works; exiting stops it. `/resume <run_id>` and `/director` replay the
   rounds a run completed, from the store. (A detached, terminal-independent director

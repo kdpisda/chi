@@ -84,11 +84,15 @@ def build_noise_guard(problem: ProblemConfig, direction: str) -> NoiseGuard | No
 class DirectorHandle:
     def __init__(self, fleet: FleetConfig, runs_root: Path,
                  brain_fn: Callable[[str], str] | None = None,
-                 emit: Callable[[str], None] | None = None) -> None:
+                 emit: Callable[[str], None] | None = None,
+                 target_score: float | None = None,
+                 cost_ceiling_usd: float | None = None) -> None:
         self._fleet = fleet
         self._runs_root = Path(runs_root)
         self._brain = brain_fn
         self._emit = emit or (lambda line: None)
+        self._target_score = target_score
+        self._cost_ceiling_usd = cost_ceiling_usd
         self.ready = threading.Event()
         self.stop_event = threading.Event()
         self.run_id: str | None = None
@@ -131,7 +135,9 @@ class DirectorHandle:
                                       researcher, direction=direction, emit=self._emit,
                                       noise_guard=noise_guard,
                                       candidate_name=problem.candidate,
-                                      per_coder_strategy=per_coder)
+                                      per_coder_strategy=per_coder,
+                                      target_score=self._target_score,
+                                      cost_ceiling_usd=self._cost_ceiling_usd)
             self.ready.set()
             self._director.run(self.stop_event)
         except Exception as exc:  # surfaced to the transcript, never raised

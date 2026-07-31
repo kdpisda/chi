@@ -273,3 +273,66 @@ def test_director_researches_when_stuck(tmp_path, monkeypatch):
     director.run(stop)
 
     assert calls == [(636.0, ["bf16"])]  # research fired once, with the dead class
+
+
+def test_director_self_stops_at_target_score(tmp_path, monkeypatch):
+    # audit cluster H: "get it under X then stop". The director should halt itself
+    # when the verified best meets a target, not run until externally stopped.
+    store = _seed_run(tmp_path)
+    import chi.director.loop as loopmod
+
+    scores = iter([700.0, 640.0, 480.0])  # third round crosses the 500 target
+
+    def moving_digest(store_, run_id_, round_index, prev_best, direction="minimize",
+                      noise_band_pct=8.0):
+        best = next(scores)
+        return RoundDigest(round_index=round_index, best_score=best,
+                           champion_score=best, prev_best=prev_best)
+
+    monkeypatch.setattr(loopmod, "build_digest", moving_digest)
+    stop = threading.Event()
+
+    class _Runner:
+        def __init__(self): self.i = 0
+        def __call__(self, iterations):
+            self.i += 1
+            return RoundResult(round_index=self.i - 1, new_experiments=[],
+                               best_score=None, benchmarks_run=1, cost_usd=0.0)
+
+    d = loopmod.Director(store, "r1", tmp_path / "r", _Runner(), _FakeStrategist(),
+                         researcher=None, emit=lambda line: None, idle_sleep_seconds=0.0,
+                         target_score=500.0)
+    d.run(stop)  # returns on its own — stop_event never set
+
+    assert d.halted_reason is not None
+    assert "target" in d.halted_reason.lower()
+    assert len(list_events(store, "r1", "DIRECTOR_ROUND")) == 3  # halted the round it crossed
+
+
+def test_director_self_stops_at_cost_ceiling(tmp_path, monkeypatch):
+    store = _seed_run(tmp_path)
+    import chi.director.loop as loopmod
+
+    def flat_digest(store_, run_id_, round_index, prev_best, direction="minimize",
+                    noise_band_pct=8.0):
+        return RoundDigest(round_index=round_index, best_score=636.0,
+                           champion_score=636.0, prev_best=636.0)
+
+    monkeypatch.setattr(loopmod, "build_digest", flat_digest)
+    stop = threading.Event()
+
+    class _Runner:
+        def __init__(self): self.i = 0
+        def __call__(self, iterations):
+            self.i += 1
+            return RoundResult(round_index=self.i - 1, new_experiments=[],
+                               best_score=636.0, benchmarks_run=1, cost_usd=2.0)
+
+    d = loopmod.Director(store, "r1", tmp_path / "r", _Runner(), _FakeStrategist(),
+                         researcher=None, emit=lambda line: None, idle_sleep_seconds=0.0,
+                         cost_ceiling_usd=5.0)
+    d.run(stop)  # after 3 rounds cumulative_cost=6.0 >= 5.0
+
+    assert d.halted_reason is not None
+    assert "budget" in d.halted_reason.lower() or "cost" in d.halted_reason.lower()
+    assert d.cumulative_cost >= 5.0

@@ -27,7 +27,9 @@ class Director:
                  stuck_k: int = 2, iterations_per_round: int = 2,
                  per_coder_strategy: dict | None = None,
                  idle_sleep_seconds: float = 5.0,
-                 dead_eval_rounds: int = 3) -> None:
+                 dead_eval_rounds: int = 3,
+                 target_score: float | None = None,
+                 cost_ceiling_usd: float | None = None) -> None:
         self._store = store
         self._run_id = run_id
         self._run_dir = Path(run_dir)
@@ -49,9 +51,19 @@ class Director:
         # eval itself is broken (e.g. the leaderboard closed and every benchmark
         # errors) — run-until-stopped must not mean burn-forever-on-a-dead-eval
         self._dead_eval_rounds = dead_eval_rounds
+        # optional self-stop conditions (audit: "reach X then stop" / "cap at $Y").
+        # Under run-until-stopped these let the user hand off a goal and walk away.
+        self._target_score = target_score
+        self._cost_ceiling = cost_ceiling_usd
         self.halted_reason: str | None = None
         self.cumulative_benchmarks = 0
         self.cumulative_cost = 0.0
+
+    def _target_met(self, best: float | None) -> bool:
+        if self._target_score is None or best is None:
+            return False
+        return (best <= self._target_score if self._direction == "minimize"
+                else best >= self._target_score)
 
     def run(self, stop_event: threading.Event) -> None:
         prev_best: float | None = None
@@ -129,6 +141,23 @@ class Director:
                 events.append_event(self._store, self._run_id, events.STOP,
                                     payload={"reason": self.halted_reason})
                 self._emit(f"⚠ director halted: {self.halted_reason}")
+                return
+            # self-stop: goal reached, or the spend ceiling hit. Checked AFTER the
+            # round is recorded so the crossing round shows in the transcript.
+            if self._target_met(digest.best_score):
+                self.halted_reason = (
+                    f"target reached: {digest.best_score} meets {self._target_score}")
+                events.append_event(self._store, self._run_id, events.STOP,
+                                    payload={"reason": self.halted_reason})
+                self._emit(f"✓ director stopped: {self.halted_reason}")
+                return
+            if self._cost_ceiling is not None and self.cumulative_cost >= self._cost_ceiling:
+                self.halted_reason = (
+                    f"cost ceiling reached: ${self.cumulative_cost:.2f}"
+                    f" >= ${self._cost_ceiling:.2f} (budget)")
+                events.append_event(self._store, self._run_id, events.STOP,
+                                    payload={"reason": self.halted_reason})
+                self._emit(f"✓ director stopped: {self.halted_reason}")
                 return
             # a round with no new benchmarks means the slice returned nothing to
             # chew on — back off so we don't busy-spin (interruptible via the event)

@@ -94,9 +94,15 @@ TOOLS = [
                        " It runs the fleet in rounds, meta-reviews results, researches"
                        " when stuck, and re-steers the agents ON ITS OWN until the user"
                        " stops it. Use when the user wants chi to 'keep improving on its"
-                       " own' from a single task — do NOT babysit it with per-round steers.",
+                       " own' from a single task — do NOT babysit it with per-round steers."
+                       " Pass target_score when the user names a goal ('get it under 500'"
+                       " → target_score:500) and cost_ceiling_usd when they cap spend"
+                       " ('don't spend over $5' → cost_ceiling_usd:5); the director then"
+                       " halts itself when the goal or the cap is reached.",
         "parameters": {"type": "object",
-                       "properties": {"problem_dir": {"type": "string"}},
+                       "properties": {"problem_dir": {"type": "string"},
+                                      "target_score": {"type": "number"},
+                                      "cost_ceiling_usd": {"type": "number"}},
                        "required": ["problem_dir"]}}},
     {"type": "function", "function": {
         "name": "stop_director",
@@ -402,7 +408,9 @@ def dispatch_tool(engine: "SessionEngine", name: str, args: dict) -> tuple[str, 
                                       args.get("max_iterations"))
         return "\n".join(shown), shown
     if name == "start_director":
-        shown = engine.start_director(str(args.get("problem_dir", "")))
+        shown = engine.start_director(str(args.get("problem_dir", "")),
+                                      target_score=args.get("target_score"),
+                                      cost_ceiling_usd=args.get("cost_ceiling_usd"))
         return "\n".join(shown), shown
     if name == "stop_director":
         shown = engine.stop_director()
