@@ -61,10 +61,12 @@ def _build_auto_submitter(store, run_id, problem):
     if not (getattr(problem, "leaderboard", None) and getattr(problem, "auto_submit", False)):
         return None
     from chi.eval.autosubmit import AutoSubmitter
-    from chi.eval.popcorn import PopcornBackend
+    from chi.eval.registry import build_backend
 
-    backend = PopcornBackend(problem.leaderboard, problem.benchmark_cmd or "",
-                             problem.submit_cmd or "")
+    backend = build_backend(getattr(problem, "eval_backend", "popcorn"),
+                            leaderboard=problem.leaderboard,
+                            benchmark_cmd=problem.benchmark_cmd or "",
+                            submit_cmd=problem.submit_cmd or "")
 
     def emit(line: str) -> None:
         events.append_event(store, run_id, events.STATUS, payload={"auto_submit": line})
