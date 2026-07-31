@@ -125,11 +125,23 @@ def evaluate(
         score_value=score_value, noise_std=noise_std, detail=detail,
     )
     if store is not None and run_id is not None:
+        # Archive every scored+correct candidate's EXACT bytes, keyed by code hash,
+        # so the champion (now or after a later regression) is always recoverable —
+        # the on-disk workdir file gets overwritten/reverted by coders and is not a
+        # reliable record of what actually won.
+        artifacts_path: str | None = None
+        if result.correct and result.score_value is not None:
+            champions_dir = store.run_dir / "champions"
+            champions_dir.mkdir(parents=True, exist_ok=True)
+            archive = champions_dir / f"{chash}.py"
+            if not archive.exists():  # dedup by content hash; tiny files
+                archive.write_bytes(candidate.read_bytes())
+            artifacts_path = str(archive)
         ledger.record_experiment(
             store, run_id, code_hash=chash, correct=result.correct,
             seeds_passed=result.seeds_passed, score_value=result.score_value,
             noise_std=result.noise_std, agent_id=agent_id, task_id=task_id,
             score_metric=problem.score.metric, parent_code_hash=parent_code_hash,
-            strategy=strategy,
+            strategy=strategy, artifacts_path=artifacts_path,
         )
     return result

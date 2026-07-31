@@ -212,15 +212,17 @@ def _run_coder(coder, workdir, task_id, strategy, store, run_id, problem, budget
 
 
 def _export_champion(store, run_id, champ, coders, run_dir, base_workdir, problem) -> None:
-    """Copy the winning candidate into the shared workdir so /champion --export works."""
-    author = champ["author"]
-    src_workdir = base_workdir
-    if len(coders) > 1 and any(c.id == author for c in coders):
-        src_workdir = run_dir / f"workdir-{author}"
-    src = src_workdir / problem.candidate
+    """Copy the champion into the shared workdir from its eval-time archive.
+
+    Source the champion from run_dir/champions/<hash>.py (written by evaluate), NOT the
+    coder's live workdir. On a single-coder run src==dst made this a no-op, and coders
+    revert candidate.py to a losing attempt after a benchmark — so the live file is not
+    the champion. The archive holds the champion's exact verified bytes.
+    """
+    archive = run_dir / "champions" / f"{champ['code_hash']}.py"
     dst = base_workdir / problem.candidate
-    if src.exists() and src.resolve() != dst.resolve():
-        shutil.copy(src, dst)
+    if archive.exists():
+        shutil.copy(archive, dst)
 
 
 def start_run(
