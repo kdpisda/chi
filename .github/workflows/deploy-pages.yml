@@ -40,13 +40,12 @@ jobs:
             "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/${deb}"
           echo "${HUGO_DEB_SHA256}  ${deb}" | sha256sum -c -
           sudo dpkg -i "$deb"
-      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d  # v6
-        id: pages
       - name: build site
-        # override baseURL with the Pages-provided URL so the build is correct
-        # even before getchi.dev's DNS resolves; the CNAME file still binds the
-        # custom domain once GitHub Pages settings point at it
-        run: hugo --source website --minify --baseURL "${{ steps.pages.outputs.base_url }}/"
+        # baseURL comes from hugo.toml (https://getchi.dev/) — the site is served
+        # from the apex custom domain, so assets/links must resolve at root. Do NOT
+        # override with the Pages default URL (…github.io/chi/): that /chi/ subpath
+        # 404s every asset on getchi.dev.
+        run: hugo --source website --minify
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9  # v5
         with:
           path: website/public
