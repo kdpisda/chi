@@ -91,6 +91,17 @@ class ProblemConfig(BaseModel):
     auto_submit: bool = False  # submit real improvements to the leaderboard unattended
     promote_margin_pct: float = 0.5  # must beat the last submission by this to auto-submit
     current_best: float | None = None  # seed with your live leaderboard best
+    # problem-scoped strategy priors (round-robin across coders). These beat the
+    # coder-config `strategy` field, which is problem-agnostic: a global CUDA
+    # prior leaking onto an unrelated problem produced hallucinated dead ends.
+    strategies: list[str] = Field(default_factory=list)
+
+
+def resolve_strategy(problem: "ProblemConfig", coder: "CoderCfg", index: int) -> str:
+    """The strategy a coder runs under: problem prior > coder config > default."""
+    if problem.strategies:
+        return problem.strategies[index % len(problem.strategies)]
+    return coder.strategy or f"strategy-{coder.id}"
 
 
 def load_fleet(path: Path) -> FleetConfig:

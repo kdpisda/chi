@@ -14,6 +14,7 @@ from chi.agents.protocol import CoderAdapter
 from chi.agents.scripted import ScriptedAdapter
 from chi.config import (
     CoderCfg, FleetConfig, PoliciesCfg, ProblemConfig, load_problem, resolve_coders,
+    resolve_strategy,
 )
 from chi.eval.hashing import code_hash
 from chi.eval.runner import evaluate
@@ -249,7 +250,7 @@ def _launch_fleet(
     # dedup, the negative ledger, and champion selection work across the fleet
     coder_status: dict[str, tuple[str, int]] = {}
     threads: list[threading.Thread] = []
-    for coder in coders:
+    for index, coder in enumerate(coders):
         coder_workdir = run_dir / f"workdir-{coder.id}" if len(coders) > 1 else base_workdir
         if coder_workdir != base_workdir and not coder_workdir.exists():
             shutil.copytree(fleet.problem, coder_workdir)
@@ -259,7 +260,7 @@ def _launch_fleet(
             " started_at) VALUES (?,?,?,?,?,?)",
             (coder.id, run_id, coder.adapter, coder.model, str(coder_workdir), utcnow()),
         )
-        strategy = coder.strategy or f"strategy-{coder.id}"
+        strategy = resolve_strategy(problem, coder, index)
         task_id = tasks.create_task(store, run_id, spec={"goal": "improve score",
                                                          "strategy": strategy})
         tasks.claim_task(store, run_id, coder.id, policies.lease_seconds)

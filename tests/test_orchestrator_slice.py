@@ -25,6 +25,37 @@ def _fleet(tmp_path: Path, script: list[str], iters: int) -> FleetConfig:
     })
 
 
+def test_problem_scoped_strategies_beat_global_coder_priors(tmp_path: Path) -> None:
+    # Observed live: cholesky-era strategies from the global coder config (CUDA
+    # vocabulary) leaked onto a Python prefix-sums problem and the coder recorded
+    # a hallucinated CUDA dead end. A problem pack that declares `strategies:`
+    # must override the problem-agnostic config priors (round-robin by coder).
+    import shutil
+
+    import yaml
+
+    pack = tmp_path / "pack"
+    shutil.copytree(PROBLEM_DIR, pack)
+    manifest = yaml.safe_load((pack / "problem.yaml").read_text())
+    manifest["strategies"] = ["vectorize-with-stdlib", "algorithmic-rewrite"]
+    (pack / "problem.yaml").write_text(yaml.safe_dump(manifest))
+
+    sp = tmp_path / "s.json"
+    sp.write_text(json.dumps([GOOD]))
+    fleet = FleetConfig.model_validate({
+        "run_name": "t", "problem": str(pack),
+        "budgets": {"total_usd": 1.0},
+        "coders": [{"id": "c1", "model": "scripted", "adapter": "scripted",
+                     "script": str(sp), "strategy": "tune-champion-fused-kernel"}],
+        "policies": {"max_iterations": 1, "eval_recency_iters": 100, "repeat_k": 3},
+    })
+    summary = start_run(fleet, runs_root=tmp_path / "runs")
+    store = Store.open(summary.run_dir)
+    strategies = {r["strategy"] for r in store.query(
+        "SELECT strategy FROM experiments WHERE author='c1'")}
+    assert strategies == {"vectorize-with-stdlib"}  # problem prior, not the CUDA one
+
+
 def test_run_slice_continues_existing_run_without_new_baseline(tmp_path: Path) -> None:
     fleet = _fleet(tmp_path, [NAIVE, GOOD], iters=1)
     first = start_run(fleet, runs_root=tmp_path / "runs")

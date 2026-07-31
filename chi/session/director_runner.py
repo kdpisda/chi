@@ -9,7 +9,7 @@ import threading
 from pathlib import Path
 from typing import Callable
 
-from chi.config import FleetConfig, load_problem, resolve_coders
+from chi.config import FleetConfig, load_problem, resolve_coders, resolve_strategy
 from chi.director.loop import Director
 from chi.director.research import Researcher
 from chi.director.round import RoundRunner
@@ -45,7 +45,8 @@ class DirectorHandle:
             self.run_dir = summary.run_dir
             self.run_id = summary.run_id
             store = Store.open(self.run_dir)
-            direction = load_problem(self.run_dir / "workdir").score.direction
+            problem = load_problem(self.run_dir / "workdir")
+            direction = problem.score.direction
             runner = RoundRunner(self._fleet, self.run_dir, first_started=True,
                                  stop_event=self.stop_event)
             runner.run_id = self.run_id
@@ -53,7 +54,8 @@ class DirectorHandle:
                                     brain_fn=self._brain)
             researcher = Researcher(brain_fn=self._brain)
             coders = resolve_coders(self._fleet)
-            per_coder = {c.id: (c.strategy or f"strategy-{c.id}") for c in coders}
+            per_coder = {c.id: resolve_strategy(problem, c, i)
+                         for i, c in enumerate(coders)}
             self._director = Director(store, self.run_id, self.run_dir, runner, strategist,
                                       researcher, direction=direction, emit=self._emit,
                                       per_coder_strategy=per_coder)
