@@ -19,6 +19,7 @@ class Watchdog:
         self._iters_without_eval = 0
         self._last_hash: str | None = None
         self._hash_streak = 0
+        self._timeout_streak = 0
 
     def seed(self, *, iters_without_eval: int = 0, last_hash: str | None = None,
              hash_streak: int = 0) -> None:
@@ -46,12 +47,17 @@ class Watchdog:
                         " iterations across slices")
         return WatchdogVerdict("ok")
 
-    def observe_iteration(self, *, new_evals: int, candidate_hash: str) -> WatchdogVerdict:
+    def observe_iteration(self, *, new_evals: int, candidate_hash: str,
+                          note: str = "") -> WatchdogVerdict:
         """Feed one finished iteration; get the verdict for what to do next."""
         if new_evals > 0:
             self._iters_without_eval = 0
         else:
             self._iters_without_eval += 1
+        if new_evals == 0 and note == "timeout":
+            self._timeout_streak += 1
+        else:
+            self._timeout_streak = 0
         if candidate_hash == self._last_hash:
             self._hash_streak += 1
         else:
@@ -62,6 +68,15 @@ class Watchdog:
         if self._iters_without_eval >= recency_cap:
             return WatchdogVerdict(
                 "kill", f"no new eval datapoints in {self._iters_without_eval} iterations"
+            )
+        # a zero-eval TIMEOUT is a doomed-edit signal, not mere idleness: mutate
+        # on the very first one so the next seed steers toward a smaller edit,
+        # instead of waiting for the recency-half mutate or the recency kill
+        if self._timeout_streak >= 1:
+            return WatchdogVerdict(
+                "mutate",
+                f"iteration timed out with no measured result ({self._timeout_streak}"
+                " in a row) — make a much smaller, faster edit",
             )
         if self._iters_without_eval == max(1, recency_cap // 2):
             return WatchdogVerdict(
