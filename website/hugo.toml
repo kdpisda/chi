@@ -1,6 +1,8 @@
 # chi website — build with: hugo --source website
-# baseURL is a placeholder; override at deploy time with `hugo -b <url>`.
-baseURL = "https://kdpisda.github.io/chi/"
+# Served from the apex custom domain (GitHub Pages + Cloudflare DNS); the deploy
+# workflow overrides this with `-b` from the Pages URL, so it stays correct even
+# before DNS cuts over.
+baseURL = "https://getchi.dev/"
 locale = "en-us"
 title = "chi — an autoresearch harness"
 
