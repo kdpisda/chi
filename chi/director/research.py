@@ -8,25 +8,36 @@ failure never sinks the loop.
 from typing import Callable
 
 _PROMPT = (
-    "You are the research director for a batched dense Cholesky factorization CUDA"
-    " kernel targeting an NVIDIA B200. You are STUCK at {champ}µs (geomean). These"
-    " approach classes are already ruled out — do NOT suggest them: {dead}."
-    " Search the web if you can (CUDA C++ / Blackwell microarchitecture / cuSOLVER /"
-    " recent batched-cholesky papers) and report 3-5 CONCRETE, genuinely different"
-    " techniques worth trying next, each one line. Techniques only, no preamble.")
+    'You are the research director for the optimization problem "{name}".\n'
+    "{context}"
+    "Objective: {direction} {metric}. You are STUCK — the current champion"
+    " {metric} is {champ}. These approach classes are already ruled out — do NOT"
+    " suggest them: {dead}. Search the web if you can for techniques relevant to"
+    " THIS problem and report 3-5 CONCRETE, genuinely different techniques worth"
+    " trying next, each one line. Techniques only, no preamble.")
 
 
 class Researcher:
     def __init__(self, brain_fn: Callable[[str], str] | None = None,
-                 max_chars: int = 2000) -> None:
+                 max_chars: int = 2000, *,
+                 problem_name: str = "the target problem",
+                 problem_description: str = "", metric: str = "score",
+                 direction: str = "minimize") -> None:
         self._brain = brain_fn
         self._max = max_chars
+        self._name = problem_name
+        self._description = problem_description
+        self._metric = metric
+        self._direction = direction
 
     def research(self, champion_score: float, dead_classes: list) -> str:
         """One brain call for new ideas; "" on no brain / empty / error."""
         if self._brain is None:
             return ""
-        prompt = _PROMPT.format(champ=champion_score,
+        context = f"Context: {self._description}\n" if self._description else ""
+        prompt = _PROMPT.format(name=self._name, context=context,
+                                metric=self._metric, direction=self._direction,
+                                champ=champion_score,
                                 dead=", ".join(dead_classes) or "none")
         try:
             out = self._brain(prompt) or ""

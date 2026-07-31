@@ -17,12 +17,17 @@ _OP_MARKER = "## §op"  # operator interjections live under this heading
 
 class Strategist:
     def __init__(self, store, run_id: str, run_dir: Path, direction: str = "minimize",
-                 brain_fn: Callable[[str], str] | None = None) -> None:
+                 brain_fn: Callable[[str], str] | None = None, *,
+                 problem_name: str = "the target problem",
+                 problem_description: str = "", metric: str = "score") -> None:
         self._store = store
         self._run_id = run_id
         self._run_dir = Path(run_dir)
         self._direction = direction
         self._brain = brain_fn
+        self._name = problem_name
+        self._description = problem_description
+        self._metric = metric
 
     def plan(self, digest: RoundDigest, state: DirectorState,
              per_coder_strategy: dict, research_findings: str = "") -> StrategyUpdate:
@@ -47,9 +52,11 @@ class Strategist:
             lines.append("")
         strategies = dict(per_coder_strategy)
         if state in (DirectorState.PLATEAUED, DirectorState.STUCK) and self._brain and strategies:
+            context = f" Context: {self._description}." if self._description else ""
             prompt = (
-                "You are the research director for a batched-Cholesky B200 CUDA kernel."
-                f" State: {state.value}. Champion {digest.champion_score}µs."
+                f'You are the research director for the optimization problem "{self._name}".'
+                f" Objective: {self._direction} {self._metric}.{context}"
+                f" State: {state.value}. Champion {self._metric} {digest.champion_score}."
                 f" Dead approaches (do NOT propose these):"
                 f" {', '.join(digest.dead_classes) or 'none'}."
                 f" {('Research: ' + research_findings) if research_findings else ''}"

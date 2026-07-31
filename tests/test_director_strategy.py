@@ -40,6 +40,27 @@ def test_brain_invents_new_strategy_when_stuck(tmp_path):
     assert upd.per_coder_strategy["c1"] == "recursive-right-looking-syrk"
 
 
+def test_mutation_prompt_is_domain_generic(tmp_path):
+    # The new-strategy brain prompt must template from the actual problem, not
+    # hardcode the batched-Cholesky B200 CUDA domain.
+    captured: dict[str, str] = {}
+
+    def brain(prompt: str) -> str:
+        captured["prompt"] = prompt
+        return "meet-in-the-middle"
+
+    st = Strategist(_store(tmp_path), "r1", tmp_path / "r", brain_fn=brain,
+                    problem_name="knapsack-dp",
+                    problem_description="0/1 knapsack via dynamic programming",
+                    metric="iterations")
+    st.plan(_digest(dead=["greedy"]), DirectorState.STUCK, {"c1": "old"})
+    prompt = captured["prompt"]
+    assert "knapsack-dp" in prompt
+    assert "iterations" in prompt
+    for banned in ("cuSOLVER", "B200", "Cholesky", "µs"):
+        assert banned not in prompt
+
+
 def test_apply_writes_steering_file(tmp_path):
     rundir = tmp_path / "r"
     st = Strategist(_store(tmp_path), "r1", rundir)
