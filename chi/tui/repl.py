@@ -89,8 +89,10 @@ def run_repl(
                 except KeyboardInterrupt:
                     continue  # clear the current line, like other REPLs
                 except EOFError:
-                    if engine.has_active_run():
-                        print("a run is active — /stop it first, or Ctrl-D again to detach")
+                    if engine.has_active_run() or engine.has_active_director():
+                        what = "a director" if engine.has_active_director() else "a run"
+                        print(f"{what} is running — /stop it first (exiting kills it),"
+                              " or Ctrl-D again to leave")
                         try:
                             text = prompt_fn()
                         except EOFError:

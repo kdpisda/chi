@@ -38,9 +38,12 @@ operator exposes `start_director` / `stop_director` / `director_status`.
   benchmark/$ counter is your guardrail.
 - **Interject** — just type. Plain text while the director runs is folded into the
   next round as a priority directive; it doesn't interrupt the in-flight slice.
-- **Detach / reattach** — Ctrl-D detaches (the loop keeps running); reattach later
-  with `/resume`. The loop is store-backed, so a reattached session replays its rounds.
-- **Stop** — `/stop` (or "stop"). The director halts at the next round boundary.
+  (A bare "stop" halts it — see below — but "stop using recursion" steers.)
+- **Stop** — `/stop` (or a bare "stop"). The director halts at the next round boundary.
+- **The director runs inside the session** (an in-process loop) — keep the session
+  open while it works; exiting stops it. `/resume <run_id>` and `/director` replay the
+  rounds a run completed, from the store. (A detached, terminal-independent director
+  that survives closing the session is planned but not yet available.)
 
 ## Leaderboard submission stays manual
 

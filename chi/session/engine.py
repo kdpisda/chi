@@ -155,6 +155,10 @@ class SessionEngine:
         """True while a run is executing."""
         return self._handle is not None and self._handle.alive
 
+    def has_active_director(self) -> bool:
+        """True while the autonomous director loop is running."""
+        return self._director is not None and self._director.alive
+
     def snapshot(self) -> dict:
         """Cheap status snapshot for frontends (status bars, headers)."""
         return {
@@ -723,10 +727,50 @@ class SessionEngine:
                 f"  champ={champ_txt}  {s.get('started_at', '')[:16]}")
 
     def _cmd_stop(self, args: str) -> list[str]:
+        # a running director is also stopped by /stop (audit: it used to report
+        # "no active run" because this only inspected self._handle)
+        if self.has_active_director():
+            return self.stop_director()
         if not self.has_active_run() or self._handle is None:
             return ["no active run"]
         self._handle.request_stop()
         return ["stop requested — the run ends at the next iteration boundary"]
+
+    def query_ledger(self, text: str) -> list[str]:
+        """Search experiments AND the negative ledger by text (operator tool).
+
+        The /ledger command dumps a whole table; this LIKE-matches both tables so
+        "what's been ruled out?" actually returns the matching dead ends.
+        """
+        from chi.store import ledger
+
+        run_dir = self._active_or_last_run_dir()
+        if run_dir is None:
+            return ["no run to inspect"]
+        store = Store.open(run_dir)
+        runs = store.query("SELECT run_id FROM runs")
+        if not runs:
+            return ["no run recorded"]
+        run_id = runs[0]["run_id"]
+        # the operator passes a natural phrase; query_knowledge does one literal
+        # LIKE, so match on any meaningful token (and the whole phrase) and merge
+        terms = [text] + [w for w in text.split() if len(w) > 2]
+        neg_by_id: dict = {}
+        exp_by_hash: dict = {}
+        for term in terms:
+            found = ledger.query_knowledge(store, run_id, term)
+            for n in found.get("negatives", []):
+                neg_by_id[n["neg_id"]] = n
+            for e in found.get("experiments", []):
+                exp_by_hash[e["code_hash"]] = e
+        negatives = list(neg_by_id.values())
+        experiments = list(exp_by_hash.values())
+        if not negatives and not experiments:
+            return [f"nothing matching '{text}' in the ledger"]
+        lines = [f"ruled out ({len(negatives)}):"]
+        lines += [f"  - [{n['approach_class']}] {n['summary']}" for n in negatives]
+        lines += [f"experiments ({len(experiments)} match)"] if experiments else []
+        return lines
 
     def _cmd_ledger(self, args: str) -> list[str]:
         run_dir = self._active_or_last_run_dir()
@@ -772,6 +816,19 @@ class SessionEngine:
                 self._quit_after_stop = True
                 return ["stopping the run — chi quits when it lands"]
             return ["a run is active — /stop it first (or wait for it to finish)"]
+        # the director runs inside this session (an in-process thread): quitting
+        # would silently kill it, so warn instead of letting it vanish
+        if self.has_active_director():
+            choice = self._ask(
+                "A director is running — quitting stops it. Quit anyway?",
+                [("stop", "Stop the director, then quit"),
+                 ("stay", "Keep it running (stay in the session)")],
+            )
+            if choice == "stop":
+                self.stop_director()
+                self.quit_requested = True
+                return ["stopped the director — bye"]
+            return ["a director is running — /stop it first (exiting kills it)"]
         self.quit_requested = True
         return ["bye"]
 
@@ -876,7 +933,11 @@ class SessionEngine:
             return [f"error: source {src} does not exist — explore first"]
         runner = self.setup_agent_fn or self._default_setup_agent()
         if runner is None:
-            return ["error: no setup agent available — install the claude or codex CLI"]
+            return ["error: scaffolding a new problem pack currently needs the claude or"
+                    " codex CLI on PATH (the setup agent explores your files and writes"
+                    " the pack). Install one, or hand-write the pack: a problem.yaml with"
+                    " a candidate + correctness/benchmark entrypoints (see"
+                    " problems/optimize_function for the shape), then start_run it."]
         target.mkdir(parents=True, exist_ok=True)
         self.busy_note = "setup agent building the problem pack (this can take minutes)"
         self.emit_progress(f"→ setup agent scaffolding '{slug}' from {src}")
@@ -1010,8 +1071,12 @@ class SessionEngine:
         from chi.userconfig import load_user_config
 
         # while the autonomous director runs, plain text is a mid-run interjection
-        # folded into its next round — not a fresh operator conversation
-        if self._director is not None and self._director.alive:
+        # folded into its next round — not a fresh operator conversation. A BARE
+        # stop word is the exception: it halts the director (so "stop" works like
+        # /stop), while "stop using recursion" stays a steering directive.
+        if self.has_active_director():
+            if text.strip().lower().rstrip(".!") in {"stop", "halt", "/stop"}:
+                return self.stop_director()
             return self.interject_director(text)
 
         operator = self._operator()

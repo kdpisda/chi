@@ -416,7 +416,7 @@ def dispatch_tool(engine: "SessionEngine", name: str, args: dict) -> tuple[str, 
         shown = engine.commands["/champion"]("")
         return "\n".join(shown), []
     if name == "query_ledger":
-        shown = engine.commands["/ledger"](str(args.get("text", "")))
+        shown = engine.query_ledger(str(args.get("text", "")))
         return "\n".join(shown[:20]), []
     if name == "steer":
         shown = engine.commands["/steer"](str(args.get("text", "")))

@@ -193,3 +193,25 @@ def test_submit_leaderboard_no_leaderboard_configured(tmp_path: Path) -> None:
         time.sleep(0.05)
     lines = engine.submit_leaderboard("x")
     assert any("no leaderboard configured" in line for line in lines)
+
+
+def test_query_ledger_returns_ruled_out_approaches(tmp_path: Path) -> None:
+    # audit F: the query_ledger tool routed to /ledger (which ignores the text and
+    # picks a table by the literal substring "negative"), so "what's been ruled
+    # out?" dumped the experiments table. It must LIKE-match the negative ledger.
+    from chi.session.operator import dispatch_tool
+    from chi.store import ledger
+    from chi.store.db import Store, utcnow
+
+    run_dir = tmp_path / "run"
+    store = Store.open(run_dir)
+    store.execute("INSERT INTO runs (run_id, problem, fleet_config_json, started_at)"
+                  " VALUES ('r1','p','{}',?)", (utcnow(),))
+    ledger.add_negative(store, "r1", approach_class="deeper-trees",
+                        summary="deeper recursion regressed", evidence={},
+                        authored_by="c1")
+    engine = SessionEngine(runs_root=tmp_path / "runs")
+    engine._last_run_dir = run_dir
+
+    output, _ = dispatch_tool(engine, "query_ledger", {"text": "ruled out deeper"})
+    assert "deeper-trees" in output

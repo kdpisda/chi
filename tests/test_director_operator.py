@@ -67,3 +67,72 @@ def test_free_text_routes_to_interject_when_director_alive(tmp_path):
     out = eng.submit("try bigger tiles")  # plain text, director alive
     assert "next round" in out[0]
     assert "try bigger tiles" in (rd / "steering.md").read_text()
+
+
+class _StoppableDir:
+    """Fake director handle that records a stop request."""
+
+    alive = True
+
+    def __init__(self, run_dir):
+        self.run_dir = run_dir
+        self.run_id = "r1"
+        self.stopped = False
+
+    def request_stop(self):
+        self.stopped = True
+
+
+def test_slash_stop_halts_a_live_director(tmp_path):
+    # THE audit's #1 blocker: /stop reported "no active run" because _cmd_stop
+    # only inspected self._handle, never self._director.
+    from chi.session.engine import SessionEngine
+
+    eng = SessionEngine(runs_root=tmp_path / "runs")
+    rd = tmp_path / "rd"
+    rd.mkdir()
+    d = _StoppableDir(rd)
+    eng._director = d
+    out = eng.submit("/stop")
+    assert d.stopped is True
+    assert "director" in out[0].lower()
+    assert not (rd / "steering.md").exists()  # not turned into a steering line
+
+
+def test_bare_stop_word_halts_a_live_director(tmp_path):
+    from chi.session.engine import SessionEngine
+
+    eng = SessionEngine(runs_root=tmp_path / "runs")
+    rd = tmp_path / "rd"
+    rd.mkdir()
+    d = _StoppableDir(rd)
+    eng._director = d
+    out = eng.submit("stop")  # plain text, but a bare stop intent
+    assert d.stopped is True
+    assert not (rd / "steering.md").exists()
+
+
+def test_steering_text_with_stop_still_interjects(tmp_path):
+    # guard against over-capturing: "stop using recursion" is direction, not a halt
+    from chi.session.engine import SessionEngine
+
+    eng = SessionEngine(runs_root=tmp_path / "runs")
+    rd = tmp_path / "rd"
+    rd.mkdir()
+    d = _StoppableDir(rd)
+    eng._director = d
+    out = eng.submit("stop using recursion, try an iterative form")
+    assert d.stopped is False
+    assert "next round" in out[0]
+    assert "iterative form" in (rd / "steering.md").read_text()
+
+
+def test_quit_warns_on_a_live_director(tmp_path):
+    from chi.session.engine import SessionEngine
+
+    eng = SessionEngine(runs_root=tmp_path / "runs")
+    eng.ask_fn = lambda q, opts: None  # non-interactive: no choice made
+    eng._director = _StoppableDir(tmp_path / "rd")
+    out = eng.submit("/quit")
+    assert eng.quit_requested is False  # didn't silently kill the director
+    assert "director" in " ".join(out).lower()

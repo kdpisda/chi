@@ -593,8 +593,9 @@ class ChiApp(App):
         return result[0] if result else None
 
     def action_request_quit(self) -> None:
-        if self.engine.has_active_run():
-            self._write("a run is active — /stop it first")
+        if self.engine.has_active_run() or self.engine.has_active_director():
+            what = "a director" if self.engine.has_active_director() else "a run"
+            self._write(f"{what} is running — /stop it first (exiting kills it)")
             return
         self.exit()
 
