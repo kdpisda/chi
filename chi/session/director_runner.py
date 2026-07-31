@@ -114,8 +114,12 @@ class DirectorHandle:
                                  stop_event=self.stop_event)
             runner.run_id = self.run_id
             strategist = Strategist(store, self.run_id, self.run_dir, direction,
-                                    brain_fn=self._brain)
-            researcher = Researcher(brain_fn=self._brain)
+                                    brain_fn=self._brain, problem_name=problem.name,
+                                    problem_description=problem.description,
+                                    metric=problem.score.metric)
+            researcher = Researcher(brain_fn=self._brain, problem_name=problem.name,
+                                    problem_description=problem.description,
+                                    metric=problem.score.metric, direction=direction)
             coders = resolve_coders(self._fleet)
             per_coder = {c.id: resolve_strategy(problem, c, i)
                          for i, c in enumerate(coders)}

@@ -28,6 +28,19 @@ def build_digest(store: Store, run_id: str, round_index: int, prev_best: float |
     )
 
 
+def _is_improving(digest: RoundDigest, direction: str,
+                  promote_margin_pct: float) -> bool:
+    """True if this round's best beats its own prev_best by the promote margin."""
+    best, prev = digest.best_score, digest.prev_best
+    if best is None or prev is None:
+        return False
+    if direction == "minimize":
+        return best < prev * (1 - promote_margin_pct / 100)
+    if direction == "maximize":
+        return best > prev * (1 + promote_margin_pct / 100)
+    return False
+
+
 def classify_state(digest: RoundDigest, prev_digest: RoundDigest | None = None,
                    noise_band_pct: float = 8.0, promote_margin_pct: float = 0.5,
                    stuck_k: int = 2, plateau_window: int = 2,
@@ -38,18 +51,18 @@ def classify_state(digest: RoundDigest, prev_digest: RoundDigest | None = None,
     NoiseGuard verification of an apparent improvement happens in the Director
     loop, not here — this only reads the recorded best.
     """
-    best, prev = digest.best_score, digest.prev_best
-    improving = (
-        best is not None and prev is not None and (
-            (direction == "minimize" and best < prev * (1 - promote_margin_pct / 100))
-            or (direction == "maximize" and best > prev * (1 + promote_margin_pct / 100))
-        )
-    )
-    if improving:
+    if _is_improving(digest, direction, promote_margin_pct):
         return DirectorState.IMPROVING
     recent = ((history or [])[-(stuck_k - 1):] + [digest]) if stuck_k > 1 else [digest]
     no_new_classes = len(recent) >= stuck_k and all(
         d.distinct_new_classes == 0 for d in recent)
-    if digest.repeated_dead_classes or no_new_classes:
+    # perma-plateau escalation: a fleet can churn a NEW distinct class every round,
+    # each below the improvement margin, so it is never "improving" yet never
+    # repeats a dead class or runs out of new classes — the two rules above never
+    # fire and research never runs. After stuck_k consecutive non-improving rounds,
+    # escalate to STUCK so the research call fires even while classes keep churning.
+    perma_plateau = len(recent) >= stuck_k and not any(
+        _is_improving(d, direction, promote_margin_pct) for d in recent)
+    if digest.repeated_dead_classes or no_new_classes or perma_plateau:
         return DirectorState.STUCK
     return DirectorState.PLATEAUED

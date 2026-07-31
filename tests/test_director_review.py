@@ -55,6 +55,25 @@ def test_classify_plateaued_when_flat_but_still_exploring():
     assert classify_state(d) == DirectorState.PLATEAUED
 
 
+def test_perma_plateau_escalates_to_stuck():
+    # A fleet that keeps trying NEW distinct classes each round (distinct=1), each
+    # below the improvement margin: never a repeated dead class, never zero-new-
+    # classes — so the old rules stay PLATEAUED forever and research never fires.
+    # After stuck_k consecutive non-improving rounds the escalation must say STUCK.
+    hist = [_digest(636.0, 636.0, distinct=1), _digest(637.0, 636.0, distinct=1)]
+    d = _digest(best=638.0, prev=636.0, distinct=1)
+    assert classify_state(d, history=hist, stuck_k=2) == DirectorState.STUCK
+
+
+def test_improving_latest_round_survives_flat_history():
+    # Regression: a genuinely improving latest round must still classify IMPROVING
+    # even when the recent history is flat/non-improving — the escalation must not
+    # mask a real win.
+    hist = [_digest(636.0, 636.0, distinct=1), _digest(636.0, 636.0, distinct=1)]
+    d = _digest(best=600.0, prev=636.0, distinct=1)  # ~5.7% better > margin
+    assert classify_state(d, history=hist, stuck_k=2) == DirectorState.IMPROVING
+
+
 def _fleet(tmp_path):
     sp = tmp_path / "s.json"
     sp.write_text(json.dumps([NAIVE, GOOD]))
