@@ -1,0 +1,9 @@
+<nav class="docs-nav" aria-label="Documentation">
+  <p class="label">// docs</p>
+  <ul>
+    <li><a href="{{ (site.GetPage "/docs").RelPermalink }}"{{ if .IsSection }} aria-current="page"{{ end }}>Overview</a></li>
+    {{ range site.Menus.docs }}
+      <li><a href="{{ .URL }}"{{ if eq .URL $.RelPermalink }} aria-current="page"{{ end }}>{{ .Name }}</a></li>
+    {{ end }}
+  </ul>
+</nav>
