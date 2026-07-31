@@ -1,0 +1,19 @@
+# Offline, zero-key demo. The `scripted` adapter replays canned candidate
+# sources and really evaluates each one against the problem — no provider, no
+# API key, no network. Run it from the repo root:
+#
+#     chi run examples/offline.yaml
+#
+# It establishes the O(n^2) baseline, then plays three candidates ending in the
+# O(n) itertools.accumulate rewrite, which becomes the champion.
+run_name: offline-demo
+problem: problems/optimize_function
+budgets:
+  total_usd: 0.0            # scripted playback spends nothing
+coders:
+  - id: replay
+    model: scripted         # not a real model — the adapter ignores it
+    adapter: scripted
+    script: examples/demo_candidates.json
+policies:
+  max_iterations: 3         # one iteration per canned candidate

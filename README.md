@@ -8,10 +8,33 @@ Status: v1 (Phases 0–1) — single coder agent, two adapters (headless vendor
 CLIs and a LiteLLM tool loop), enforced SQLite+JSONL run store, hard budget
 caps, two-layer steering, deterministic watchdog.
 
+## Try it in 10 seconds (no API key)
+
+Chi ships an offline demo that needs no provider, no key, and no network. The
+`scripted` adapter replays three canned candidates for the bundled
+`optimize_function` problem and really evaluates each one:
+
+    uv tool install getchi
+    chi run examples/offline.yaml   # run from a checkout of this repo
+
+You'll see the champion beat the O(n²) baseline as the run replaces it with the
+O(n) `itertools.accumulate` rewrite — a real "★ new best", zero setup:
+
+    "baseline_score": 25.18,   # O(n²) prefix sums
+    "champion_score": 0.055,   # O(n) itertools.accumulate
+    "status": "done"
+
+Run it inside the interactive session (`chi`, then `/run examples/offline.yaml`)
+to watch the `★ new best` lines stream in live. This is the whole harness —
+evaluator, run store, champion selection, watchdog — exercised with no key.
+
 ## Quick start
 
-    uv tool install --editable .   # or: uv venv --python 3.12 && uv pip install -e ".[dev]"
+    uv tool install getchi         # real install; then just run `chi`
     chi                            # opens the full-terminal session (Textual UI)
+
+For local development instead: `uv tool install --editable .` (or
+`uv venv --python 3.12 && uv pip install -e ".[dev]"`).
 
 The session has a Claude Code-style interface: scrolling transcript, bottom
 input with a slash-command dropdown, live status bar, and modal fuzzy pickers.
@@ -60,7 +83,8 @@ gate; candidates never see reference outputs.
           adapter: cli_subprocess
           command: "claude -p --permission-mode acceptEdits {prompt_file}"
 
-- `scripted` — deterministic playback, used by the test suite.
+- `scripted` — deterministic playback of canned candidates; powers the test
+  suite and the no-key `examples/offline.yaml` demo.
 
 ## Design
 

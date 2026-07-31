@@ -32,6 +32,13 @@ path = "chi/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["chi"]
 
+# Ship the no-key demo with the wheel so `pip install getchi` users have both the
+# fleet config and the problem it evaluates against (examples/offline.yaml +
+# problems/optimize_function/).
+[tool.hatch.build.targets.wheel.force-include]
+"examples" = "examples"
+"problems/optimize_function" = "problems/optimize_function"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

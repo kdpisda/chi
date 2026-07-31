@@ -1,0 +1,5 @@
+[
+  "def solve(xs: list[float]) -> list[float]:\n    # Naive O(n^2): re-sum the whole prefix at every index.\n    return [sum(xs[: i + 1]) for i in range(len(xs))]\n",
+  "def solve(xs: list[float]) -> list[float]:\n    # O(n): carry a running total instead of re-summing each prefix.\n    out: list[float] = []\n    total = 0.0\n    for x in xs:\n        total += x\n        out.append(total)\n    return out\n",
+  "import itertools\n\n\ndef solve(xs: list[float]) -> list[float]:\n    # O(n) in C: itertools.accumulate does the running sum natively.\n    return list(itertools.accumulate(xs))\n"
+]
