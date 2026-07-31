@@ -29,9 +29,34 @@ risky. Be explicit about what chi does and does not protect against.
   `explore` refuses to read obvious secret files out to the model; `fetch`
   blocks internal/loopback/metadata hosts (SSRF).
 
+### Sandbox tiers: `docker` vs `docker-cli`
+
+Chi's opt-in Docker sandbox (`chi/agents/sandbox.py`, `docker/README.md`) has
+two tiers. Both mount only the coder's workdir read-write, run `--rm`, and
+never mount popcorn/leaderboard auth — gated submission holds in both.
+
+- **`sandbox: docker` — full jail.** `--network none`, no host home, no
+  credentials of any kind. No exfiltration channel.
+- **`sandbox: docker-cli` — vendor CLI tier, deliberately WEAKER.** CLI coders
+  (claude/grok/codex) need their vendor API and host auth to run at all, so
+  this preset grants `--network bridge` plus read-only mounts of allowlisted
+  vendor auth dirs that exist on the host (`~/.claude`, `~/.codex`, `~/.grok`
+  only — `cli_auth_mounts()`). **Consequence: a malicious or prompt-injected
+  agent has network egress and a valid vendor credential, so the vendor API —
+  or any reachable host — becomes an exfiltration channel for anything in the
+  workdir.** It still prevents: host filesystem access beyond workdir + the
+  read-only auth dirs, reading host credentials other than the allowlisted CLI
+  auth (popcorn/leaderboard auth is NOT mounted, so agents still cannot
+  submit), tampering with the mounted auth (`:ro`), and persistence (`--rm`).
+
+Use `docker` when the agent doesn't need a vendor API from inside the
+container; use `docker-cli` knowingly, as a middle tier between no sandbox and
+the full jail.
+
 ### Out of scope (you must provide these)
-- **Sandboxing of agent-executed code.** Chi does **not** yet run agents or their
-  generated code in a sandbox. A coder agent with shell access runs with the
+- **Sandboxing of agent-executed code.** Chi does **not** run agents or their
+  generated code in a sandbox *by default* — the Docker tiers above are
+  opt-in. A coder agent with shell access runs with the
   permissions of the user who launched chi. The PATH shim mediates *submission*,
   not arbitrary code execution — a determined agent (or a prompt-injected one)
   can still touch the host. **If you run untrusted problems or want a hard
