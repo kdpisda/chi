@@ -12,10 +12,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      # NOTE: pin these to commit SHAs before relying on CI as a security control
-      # (get SHAs with: gh api repos/actions/checkout/commits/v4 --jq .sha).
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      # actions pinned to commit SHAs (tag hijack can't move a SHA); the trailing
+      # comment records the tag each SHA froze
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
         with:
           python-version: "3.12"
       # lockfile must be in sync with pyproject — a drifted lock is a supply-chain risk
@@ -29,8 +29,8 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
         with:
           python-version: "3.12"
       - name: install pip-audit
