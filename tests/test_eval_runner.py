@@ -71,6 +71,19 @@ def test_incorrect_candidate_gated_no_score(tmp_path: Path) -> None:
     assert not res.correct and res.score_value is None
 
 
+def test_benchmark_infra_failure_is_not_marked_incorrect(tmp_path: Path) -> None:
+    # bench.py failing is an EVAL failure, not candidate incorrectness: the
+    # candidate passed the correctness gate. Recording correct=False here polluted
+    # the ledger live — the rank-14 champion kernel got marked "incorrect" when the
+    # leaderboard closed and popcorn started erroring on every benchmark.
+    wd = _mkproblem(tmp_path, "# GOOD FAST\n")
+    (wd / "bench.py").write_text("import sys\nsys.exit(3)\n")
+    res = evaluate(load_problem(wd), wd)
+    assert res.correct is True          # correctness DID pass
+    assert res.score_value is None      # but no score — never fabricated
+    assert "benchmark failed" in res.detail
+
+
 def test_dedup_returns_cached(tmp_path: Path) -> None:
     wd = _mkproblem(tmp_path, "# GOOD\n")
     store = Store.open(tmp_path / "run")
