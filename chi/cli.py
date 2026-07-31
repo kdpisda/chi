@@ -419,9 +419,27 @@ def champion(
     typer.echo(json.dumps({"code_hash": champ["code_hash"],
                            "score_value": champ["score_value"]}))
     if export is not None:
-        import shutil as _shutil
+        from chi.eval.hashing import code_hash
 
-        _shutil.copy(run_dir / "workdir" / problem.candidate, export)
+        # Export the champion's ARCHIVED bytes (written at eval time), not the live
+        # workdir file — coders overwrite/revert candidate.py, so the live file is
+        # usually NOT the champion. Fall back to the live file only if it still
+        # hashes to the champion (older runs with no archive); never ship anything
+        # whose hash doesn't match the champion.
+        archive = run_dir / "champions" / f"{champ['code_hash']}.py"
+        live = run_dir / "workdir" / problem.candidate
+        if archive.exists():
+            source_bytes = archive.read_bytes()
+        elif live.exists() and code_hash(live.read_text()) == champ["code_hash"]:
+            source_bytes = live.read_bytes()
+        else:
+            typer.echo("live candidate is not the champion — champion source was"
+                       " not archived for this run")
+            raise typer.Exit(1)
+        if code_hash(source_bytes.decode()) != champ["code_hash"]:
+            typer.echo("archived champion source failed its hash check — refusing to export")
+            raise typer.Exit(1)
+        Path(export).write_bytes(source_bytes)
 
 
 @app.command("ledger")
