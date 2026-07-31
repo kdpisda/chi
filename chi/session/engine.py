@@ -123,6 +123,7 @@ class SessionEngine:
             "/quit": self._cmd_quit,
             "/exit": self._cmd_quit,
             "/resume": self._cmd_resume,
+            "/director": self._cmd_director,
             "/setup": self._cmd_setup,
             "/setkey": self._cmd_setkey,
         }
@@ -275,6 +276,7 @@ class SessionEngine:
             "/ledger [negative]  show experiments or dead-ends",
             "/champion           show the best candidate",
             "/resume [run_id]    attach to any past session, from any directory",
+            "/director           replay a director run's rounds (live or historical)",
             "/setup              apply the recommended model setup for this machine",
             "/setkey <provider>  store an API key (masked input, saved 0600)",
             "/models roles       assign models to orchestrator/planner/critic/researcher",
@@ -660,7 +662,56 @@ class SessionEngine:
             f" — started {chosen.get('started_at', '?')[:19]} in {chosen.get('cwd', '?')}",
         ]
         lines.extend(self._cmd_champion(""))
+        lines.extend(self._director_replay(run_dir))
         lines.append("(/status /ledger /champion inspect it; /steer still reaches it)")
+        return lines
+
+    def _cmd_director(self, args: str) -> list[str]:
+        """Replay the director's recorded rounds for the live or last-touched run."""
+        run_dir: Path | None = None
+        if self._director is not None and self._director.alive \
+                and self._director.run_dir is not None:
+            run_dir = Path(self._director.run_dir)
+        else:
+            run_dir = self._active_or_last_run_dir()
+            if run_dir is None and self._director is not None \
+                    and self._director.run_dir is not None:
+                run_dir = Path(self._director.run_dir)
+        if run_dir is None:
+            return ["no run to inspect — /run, /resume, or start a director first"]
+        lines = self._director_replay(run_dir)
+        if not lines:
+            return [f"no director rounds recorded for {run_dir.name}"]
+        return lines
+
+    def _director_replay(self, run_dir: Path) -> list[str]:
+        """Read-only replay of the DIRECTOR_ROUND history stored at run_dir.
+
+        The store is the source of truth, so this works with or without an
+        in-process director; [] when the run recorded no director rounds.
+        """
+        from chi.store import events
+
+        store = Store.open(run_dir)
+        runs = store.query("SELECT run_id FROM runs")
+        if not runs:
+            return []
+        run_id = runs[0]["run_id"]
+        rows = events.list_events(store, run_id, events.DIRECTOR_ROUND)
+        if not rows:
+            return []
+        lines: list[str] = []
+        for row in rows:
+            p = json.loads(row["payload_json"])
+            lines.append(
+                f"round {p.get('round')}: {p.get('state')} · best {p.get('best')}"
+                f" · Σ {p.get('cum_benchmarks')} benches ${p.get('cum_cost') or 0.0:.2f}"
+            )
+        d = self._director
+        if d is not None and d.alive and getattr(d, "run_id", None) == run_id:
+            lines.append(f"director LIVE in this session (run {run_id}) — /stop halts it")
+        else:
+            lines.append("historical run — no live director in this process")
         return lines
 
     @staticmethod

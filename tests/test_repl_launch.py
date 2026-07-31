@@ -27,5 +27,5 @@ def test_engine_command_names_match_repl_completer_source(tmp_path: Path) -> Non
     engine = SessionEngine(runs_root=tmp_path / "runs")
     expected = {"/help", "/vendors", "/providers", "/models", "/run", "/status",
                 "/steer", "/stop", "/ledger", "/champion", "/quit", "/exit", "/resume",
-                "/setup", "/setkey"}
+                "/director", "/setup", "/setkey"}
     assert set(engine.commands) == expected
