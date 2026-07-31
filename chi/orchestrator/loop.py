@@ -1,5 +1,6 @@
 """Deterministic v1 run loop: one coder agent, steering, watchdog, budgets."""
 
+import json
 import shutil
 import threading
 import uuid
@@ -73,13 +74,60 @@ def _build_auto_submitter(store, run_id, problem):
                          baseline=problem.current_best, emit=emit)
 
 
+def _seed_watchdog(store, run_id: str, agent_id: str, policies: PoliciesCfg) -> Watchdog:
+    """Watchdog with counters restored from the agent's iteration history.
+
+    Under the director the fleet runs in short slices; a watchdog built fresh per
+    slice can never reach its kill thresholds. Trailing ITERATION_COMPLETE events
+    carry evals_run and the evaluated candidate_hash, which is all the rules need.
+    """
+    watchdog = Watchdog(policies)
+    window = max(2 * policies.repeat_k, policies.eval_recency_iters) + 1
+    rows = store.query(
+        "SELECT payload_json FROM events WHERE run_id=? AND agent_id=? AND type=?"
+        " ORDER BY event_id DESC LIMIT ?",
+        (run_id, agent_id, events.ITERATION_COMPLETE, window),
+    )
+    payloads = [json.loads(r["payload_json"]) for r in rows]  # newest first
+    iters_without_eval = 0
+    for payload in payloads:
+        if payload.get("evals_run", 0) == 0:
+            iters_without_eval += 1
+        else:
+            break
+    last_hash: str | None = None
+    hash_streak = 0
+    for payload in payloads:
+        h = payload.get("candidate_hash")
+        if h is None:
+            break
+        if last_hash is None:
+            last_hash, hash_streak = h, 1
+        elif h == last_hash:
+            hash_streak += 1
+        else:
+            break
+    watchdog.seed(iters_without_eval=iters_without_eval, last_hash=last_hash,
+                  hash_streak=hash_streak)
+    return watchdog
+
+
 def _run_coder(coder, workdir, task_id, strategy, store, run_id, problem, budget,
                policies, steering, baseline_score, stop_event, completion_fn,
                coder_status, auto_submitter=None) -> None:
     """One coder agent's iteration loop, in its own worktree (runs in a thread)."""
     adapter = _make_adapter(coder, store, run_id, workdir, problem, budget, policies,
                             completion_fn)
-    watchdog = Watchdog(policies)
+    watchdog = _seed_watchdog(store, run_id, coder.id, policies)
+    # a coder with a dead-eval history (CLI erroring instantly, slice after slice)
+    # is reaped up front instead of burning another iteration every round
+    verdict = watchdog.preflight()
+    if verdict.action == "kill":
+        events.append_event(store, run_id, events.WATCHDOG_KILL, agent_id=coder.id,
+                            task_id=task_id, payload={"reason": verdict.reason})
+        tasks.release_task(store, run_id, task_id)
+        coder_status[coder.id] = ("stalled", 0)
+        return
     mutation_note = ""
     status = "done"
     completed = 0
@@ -112,15 +160,27 @@ def _run_coder(coder, workdir, task_id, strategy, store, run_id, problem, budget
                                 task_id=task_id, payload={"error": str(exc)[:200]})
             status = "failed"
             break
+        candidate_hash = code_hash((workdir / problem.candidate).read_text())
+        # The watchdog's loop-detection must track the candidate the coder
+        # actually EVALUATED this iteration, not the on-disk file: coders revert
+        # candidate.py to the champion after a losing benchmark, so the file hash
+        # looks unchanged every iteration and would falsely reap an agent that is
+        # exploring a new distinct candidate each round. The store is the truth.
+        watchdog_hash = candidate_hash
+        if outcome.evals_run > 0:
+            latest = ledger.latest_experiment(store, run_id, coder.id)
+            if latest is not None:
+                watchdog_hash = latest["code_hash"]
+        # candidate_hash in the payload lets a later slice re-seed the watchdog
         events.append_event(store, run_id, events.ITERATION_COMPLETE, agent_id=coder.id,
                             task_id=task_id,
                             payload={"iteration": iteration, "evals_run": outcome.evals_run,
                                      "note": outcome.note, "strategy": strategy,
                                      "context_pct": outcome.context_pct,
-                                     "steering_hash": state.operator_hash},
+                                     "steering_hash": state.operator_hash,
+                                     "candidate_hash": watchdog_hash},
                             cost_usd=outcome.cost_usd, tokens_in=outcome.tokens_in,
                             tokens_out=outcome.tokens_out)
-        candidate_hash = code_hash((workdir / problem.candidate).read_text())
         # auto-submit the candidate just benchmarked, if it clears the rails.
         # (On a WINNING iteration the coder keeps the winning candidate.py, so
         # this file hash correctly resolves to the improving experiment.)
@@ -132,16 +192,6 @@ def _run_coder(coder, workdir, task_id, strategy, store, run_id, problem, budget
                 events.append_event(
                     store, run_id, events.STATUS, agent_id=coder.id, task_id=task_id,
                     payload={"auto_submit": decision.reason, "submitted": decision.submitted})
-        # The watchdog's loop-detection must track the candidate the coder
-        # actually EVALUATED this iteration, not the on-disk file: coders revert
-        # candidate.py to the champion after a losing benchmark, so the file hash
-        # looks unchanged every iteration and would falsely reap an agent that is
-        # exploring a new distinct candidate each round. The store is the truth.
-        watchdog_hash = candidate_hash
-        if outcome.evals_run > 0:
-            latest = ledger.latest_experiment(store, run_id, coder.id)
-            if latest is not None:
-                watchdog_hash = latest["code_hash"]
         verdict = watchdog.observe_iteration(new_evals=outcome.evals_run,
                                              candidate_hash=watchdog_hash)
         if verdict.action == "mutate":

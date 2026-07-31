@@ -20,6 +20,32 @@ class Watchdog:
         self._last_hash: str | None = None
         self._hash_streak = 0
 
+    def seed(self, *, iters_without_eval: int = 0, last_hash: str | None = None,
+             hash_streak: int = 0) -> None:
+        """Restore counters from a prior slice's history (the store).
+
+        Under the director the fleet runs in short slices; a per-slice watchdog
+        could never accumulate to its kill thresholds, so a dead or looping coder
+        was never reaped. Seeding makes the rules hold across slices.
+        """
+        self._iters_without_eval = iters_without_eval
+        self._last_hash = last_hash
+        self._hash_streak = hash_streak
+
+    def preflight(self) -> WatchdogVerdict:
+        """Verdict from seeded history alone, before running any iteration.
+
+        Only the eval-recency rule fires here: a coder with a long trail of
+        zero-eval iterations (a CLI erroring instantly) must not burn another
+        iteration every slice. The repeat-hash rule stays iteration-driven — a
+        plateaued-but-alive coder should still get to try under new steering.
+        """
+        if self._iters_without_eval >= self._policies.eval_recency_iters:
+            return WatchdogVerdict(
+                "kill", f"preflight: no eval datapoints in {self._iters_without_eval}"
+                        " iterations across slices")
+        return WatchdogVerdict("ok")
+
     def observe_iteration(self, *, new_evals: int, candidate_hash: str) -> WatchdogVerdict:
         """Feed one finished iteration; get the verdict for what to do next."""
         if new_evals > 0:

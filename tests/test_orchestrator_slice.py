@@ -56,6 +56,56 @@ def test_problem_scoped_strategies_beat_global_coder_priors(tmp_path: Path) -> N
     assert strategies == {"vectorize-with-stdlib"}  # problem prior, not the CUDA one
 
 
+def test_watchdog_state_persists_across_slices(tmp_path: Path) -> None:
+    # Under the director, the fleet runs in short slices (2 iterations). The
+    # watchdog was constructed fresh per slice, so its kill thresholds could
+    # NEVER accumulate — a coder replaying the same candidate forever was never
+    # reaped. Seeding from the store's iteration history restores the rule.
+    fleet = _fleet(tmp_path, [NAIVE], iters=2)  # same candidate every iteration
+    fleet = fleet.model_copy(update={"policies": fleet.policies.model_copy(
+        update={"repeat_k": 3, "eval_recency_iters": 100})})  # kill at streak 6
+    first = start_run(fleet, runs_root=tmp_path / "runs")
+    store = Store.open(first.run_dir)
+    assert list_events(store, first.run_id, "WATCHDOG_KILL") == []  # 2 < 6
+
+    run_slice(fleet, first.run_dir, iterations=2)  # cumulative 4
+    assert list_events(store, first.run_id, "WATCHDOG_KILL") == []
+
+    run_slice(fleet, first.run_dir, iterations=2)  # cumulative 6 -> kill
+    kills = list_events(store, first.run_id, "WATCHDOG_KILL")
+    assert len(kills) == 1
+
+
+def test_preflight_skips_coder_with_dead_eval_history(tmp_path: Path, monkeypatch) -> None:
+    # A coder that produces NO evals (e.g. a CLI erroring instantly) must not
+    # burn an iteration every slice forever: once its trailing zero-eval history
+    # reaches the recency cap, the next slice kills it up front without running.
+    from chi.agents.protocol import IterationOutcome
+    from chi.agents.scripted import ScriptedAdapter
+
+    def dead_run_iteration(self, seed) -> IterationOutcome:
+        self.ack_steering(seed.steering_hash)
+        self.heartbeat()
+        return IterationOutcome(evals_run=0, note="exit 1")
+
+    monkeypatch.setattr(ScriptedAdapter, "run_iteration", dead_run_iteration)
+    fleet = _fleet(tmp_path, [NAIVE], iters=2)
+    fleet = fleet.model_copy(update={"policies": fleet.policies.model_copy(
+        update={"repeat_k": 50, "eval_recency_iters": 4})})
+    first = start_run(fleet, runs_root=tmp_path / "runs")
+    store = Store.open(first.run_dir)
+
+    run_slice(fleet, first.run_dir, iterations=2)  # cumulative 4 zero-eval iters
+    kills = list_events(store, first.run_id, "WATCHDOG_KILL")
+    assert len(kills) >= 1  # recency rule fired across slices
+
+    starts_before = len(list_events(store, first.run_id, "ITERATION_START"))
+    run_slice(fleet, first.run_dir, iterations=2)  # dead history -> preflight skip
+    starts_after = len(list_events(store, first.run_id, "ITERATION_START"))
+    assert starts_after == starts_before  # coder never ran again
+    assert len(list_events(store, first.run_id, "WATCHDOG_KILL")) >= 2
+
+
 def test_run_slice_continues_existing_run_without_new_baseline(tmp_path: Path) -> None:
     fleet = _fleet(tmp_path, [NAIVE, GOOD], iters=1)
     first = start_run(fleet, runs_root=tmp_path / "runs")
