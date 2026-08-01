@@ -4,10 +4,11 @@
 # before DNS cuts over.
 baseURL = "https://getchi.dev/"
 locale = "en-us"
-title = "chi — an autoresearch harness"
+title = "getchi (chi) — an autoresearch harness CLI"
 
 disableKinds = ["taxonomy", "term", "rss"]
 enableRobotsTXT = true
+enableGitInfo = true
 
 [params]
   description = "chi (χ) is an open-source autoresearch harness: point a fleet of coding agents at any problem with a programmatic evaluator and let it improve autonomously until you stop it."

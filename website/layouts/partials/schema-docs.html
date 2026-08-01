@@ -1,0 +1,12 @@
+{{ if eq .Section "docs" }}
+{{ $docsIndex := site.GetPage "/docs" }}
+{{ $isDocsIndex := eq .RelPermalink $docsIndex.RelPermalink }}
+<script type="application/ld+json">
+{ "@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [ { "@type": "ListItem", "position": 1, "name": "Home", "item": "{{ site.Home.Permalink }}" }, { "@type": "ListItem", "position": 2, "name": "Docs"{{ if not $isDocsIndex }}, "item": "{{ $docsIndex.Permalink }}"{{ end }} }{{ if not $isDocsIndex }}, { "@type": "ListItem", "position": 3, "name": {{ .Title | jsonify }} }{{ end }} ] }
+</script>
+{{ if not $isDocsIndex }}
+<script type="application/ld+json">
+{ "@context": "https://schema.org", "@type": "TechArticle", "headline": {{ .Title | jsonify }}, "description": {{ (.Description | default site.Params.description) | jsonify }}, "url": "{{ .Permalink }}", "mainEntityOfPage": "{{ .Permalink }}", "inLanguage": "en-US", "isPartOf": { "@id": "{{ site.Home.Permalink }}#website" }, "about": { "@id": "{{ site.Home.Permalink }}#software" }, "author": { "@id": "{{ site.Home.Permalink }}#person-kd" }, "publisher": { "@id": "{{ site.Home.Permalink }}#organization" }{{ if not .Date.IsZero }}, "datePublished": "{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}"{{ end }}{{ if not .Lastmod.IsZero }}, "dateModified": "{{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" }}"{{ end }} }
+</script>
+{{ end }}
+{{ end }}

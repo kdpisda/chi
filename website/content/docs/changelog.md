@@ -1,5 +1,7 @@
 ---
 title: Changelog
+description: "What shipped in each chi release."
+date: 2026-08-01
 ---
 
 # Changelog

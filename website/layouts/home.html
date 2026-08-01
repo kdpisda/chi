@@ -5,6 +5,7 @@
     <p class="eyebrow">{{ .Params.hero.eyebrow }}</p>
     <h1>{{ .Params.hero.heading | markdownify }}</h1>
     <p class="lede">{{ .Params.hero.lede | markdownify }}</p>
+    <p class="disambig"><strong>getchi</strong> (the command is <code>chi</code>) — not the Go HTTP router or the hair-straightener brand.</p>
     <div class="actions">
       <a class="btn primary" href="{{ (site.GetPage "/docs/getting-started").RelPermalink }}">Get started</a>
       <a class="btn" href="{{ site.Params.github }}" target="_blank" rel="noopener">GitHub &nearr;</a>
