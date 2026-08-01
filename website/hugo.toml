@@ -10,6 +10,12 @@ disableKinds = ["taxonomy", "term", "rss"]
 enableRobotsTXT = true
 enableGitInfo = true
 
+# Google Analytics 4 — getchi.dev property (Happychases account). Hugo's internal
+# gtag.js template reads this ID and renders the tag only in production builds
+# (`hugo --minify`), never under `hugo server`, so localhost visits aren't tracked.
+[services.googleAnalytics]
+  ID = "G-9D57Q8BMRX"
+
 [params]
   description = "chi (χ) is an open-source autoresearch harness: point a fleet of coding agents at any problem with a programmatic evaluator and let it improve autonomously until you stop it."
   github = "https://github.com/kdpisda/chi"
