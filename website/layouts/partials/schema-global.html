@@ -1,0 +1,12 @@
+{{/* Sitewide JSON-LD graph */}}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    { "@type": "WebSite", "@id": "{{ site.Home.Permalink }}#website", "url": "{{ site.Home.Permalink }}", "name": "chi", "alternateName": "getchi", "description": {{ site.Params.description | jsonify }}, "inLanguage": "en-US", "publisher": { "@id": "{{ site.Home.Permalink }}#organization" } },
+    { "@type": "Organization", "@id": "{{ site.Home.Permalink }}#organization", "name": "chi", "alternateName": "getchi", "url": "{{ site.Home.Permalink }}", "description": {{ site.Params.description | jsonify }}, "founder": { "@id": "{{ site.Home.Permalink }}#person-kd" }, "sameAs": [ "{{ site.Params.github }}", "https://pypi.org/project/getchi/" ] },
+    { "@type": "Person", "@id": "{{ site.Home.Permalink }}#person-kd", "name": "{{ site.Params.author }}", "url": "{{ site.Params.author_url }}" },
+    { "@type": ["SoftwareApplication", "SoftwareSourceCode"], "@id": "{{ site.Home.Permalink }}#software", "name": "chi", "alternateName": "getchi", "description": {{ site.Params.description | jsonify }}, "url": "{{ site.Home.Permalink }}", "codeRepository": "{{ site.Params.github }}", "programmingLanguage": "Python", "applicationCategory": "DeveloperApplication", "operatingSystem": "Linux, macOS, Windows", "softwareVersion": "{{ site.Params.version }}", "downloadUrl": "https://pypi.org/project/getchi/", "installUrl": "https://pypi.org/project/getchi/", "license": "https://www.apache.org/licenses/LICENSE-2.0", "isAccessibleForFree": true, "author": { "@id": "{{ site.Home.Permalink }}#person-kd" }, "publisher": { "@id": "{{ site.Home.Permalink }}#organization" }, "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" } }
+  ]
+}
+</script>

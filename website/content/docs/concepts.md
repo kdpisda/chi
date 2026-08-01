@@ -2,6 +2,7 @@
 title: "Concepts"
 description: "The director, the fleet, the blackboard store, the negative ledger, the watchdog, and steering — chi's moving parts and why each exists."
 weight: 20
+date: 2026-08-01
 ---
 
 chi's design comes from a postmortem of running a multi-model agent fleet by
@@ -47,7 +48,7 @@ director surfaces the verified improvement and *you* fire the submission. A
 ranked submit changes public state irreversibly; a single noisy benchmark is
 not evidence enough to automate that.
 
-## The operator
+## What is the operator?
 
 Free text in a session goes to the operator: an LLM with tools over the
 engine (`start_run`, `steer`, `query_ledger`, `start_director`,

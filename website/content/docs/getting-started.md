@@ -2,9 +2,10 @@
 title: "Getting started"
 description: "Install chi, open a session, configure providers, and run your first autoresearch loop."
 weight: 10
+date: 2026-08-01
 ---
 
-## Requirements
+## What do I need to run chi?
 
 - Python 3.11+ and [uv](https://docs.astral.sh/uv/)
 - At least one LLM provider: an API key (Anthropic, OpenAI, DeepSeek, GLM,
@@ -12,13 +13,15 @@ weight: 10
   (`claude`, `codex`, `grok`)
 - Optional: Docker, if you want sandboxed coders
 
-## Install
+## How do I install chi?
 
 Install chi from PyPI (the distribution is named `getchi`; the command stays `chi`):
 
 ```sh
 uv tool install getchi
 ```
+
+Prefer pip? `pip install getchi` works too.
 
 From source, for development:
 

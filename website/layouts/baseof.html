@@ -6,12 +6,22 @@
   <title>{{ if .IsHome }}{{ site.Title }}{{ else }}{{ .Title }} · chi{{ end }}</title>
   <meta name="description" content="{{ .Description | default site.Params.description }}">
   <meta name="color-scheme" content="dark">
+  <link rel="canonical" href="{{ .Permalink }}">
   <meta property="og:title" content="{{ if .IsHome }}{{ site.Title }}{{ else }}{{ .Title }} · chi{{ end }}">
   <meta property="og:description" content="{{ .Description | default site.Params.description }}">
   <meta property="og:type" content="website">
+  <meta property="og:url" content="{{ .Permalink }}">
+  <meta property="og:site_name" content="getchi">
+  <meta property="og:image" content="{{ "og.png" | absURL }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="{{ "og.png" | absURL }}">
   <link rel="icon" href="data:image/svg+xml,{{ `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230a0d12'/><text x='16' y='23' font-family='monospace' font-size='20' fill='%233ddc84' text-anchor='middle'>χ</text></svg>` | safeURL }}">
   {{ $css := resources.Get "css/main.css" | minify | fingerprint }}
   <link rel="stylesheet" href="{{ $css.RelPermalink }}" integrity="{{ $css.Data.Integrity }}">
+  {{ partial "schema-global.html" . }}
+  {{ partial "schema-docs.html" . }}
 </head>
 <body>
   {{ partial "header.html" . }}

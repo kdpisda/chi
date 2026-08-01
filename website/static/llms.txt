@@ -1,0 +1,31 @@
+# getchi (chi)
+
+getchi (installed command: `chi`, χ) is an open-source, Apache-2.0 autoresearch
+harness. You point a fleet of heterogeneous LLM coding agents at any problem that
+exposes a programmatic evaluator — a build, a correctness check, a score — and an
+autonomous director runs the fleet in rounds, meta-reviews results from a
+blackboard store, researches the web only when it is stuck, and rewrites the
+fleet's steering itself, improving the answer round after round until you stop it.
+It is not the Go HTTP router "chi" nor the hair-straightener brand.
+
+## Install
+
+    uv tool install getchi
+    # or
+    pip install getchi
+
+Then run `chi` for the terminal session, or `chi run <fleet.yaml>` headless.
+
+## Key links
+
+- Website: https://getchi.dev
+- Source (GitHub): https://github.com/kdpisda/chi
+- PyPI: https://pypi.org/project/getchi/
+
+## Docs
+
+- Getting started: https://getchi.dev/docs/getting-started/ — install, sessions, first run
+- Concepts: https://getchi.dev/docs/concepts/ — director, operator, fleet, store, ledger, watchdog, steering
+- Problems & evaluators: https://getchi.dev/docs/problems/ — how to define a problem pack
+- Security: https://getchi.dev/docs/security/ — threat model, sandbox tiers, submission gating
+- Changelog: https://getchi.dev/docs/changelog/ — what shipped in each release

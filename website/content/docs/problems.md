@@ -2,6 +2,7 @@
 title: "Problems & evaluators"
 description: "Anatomy of a problem pack: problem.yaml, evaluator entrypoints, held-out seeds, two-tier evaluation, and fleet strategy."
 weight: 30
+date: 2026-08-01
 ---
 
 chi is domain-agnostic. Anything that exposes a **programmatic evaluator** —

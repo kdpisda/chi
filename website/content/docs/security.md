@@ -2,6 +2,7 @@
 title: "Security"
 description: "The threat model, sandbox tiers, and why submission gating holds even under full autonomy."
 weight: 40
+date: 2026-08-01
 ---
 
 chi orchestrates LLM agents that **write and execute code**, then runs that
