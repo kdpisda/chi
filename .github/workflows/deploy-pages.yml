@@ -33,6 +33,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          fetch-depth: 0  # full history so Hugo's enableGitInfo can set <lastmod>/dates
       - name: install Hugo (extended, pinned + checksum-verified)
         run: |
           deb="hugo_extended_${HUGO_VERSION}_linux-amd64.deb"

@@ -118,7 +118,7 @@ pre code { background: none; border: none; padding: 0; font-size: inherit; color
 .version-select { position: relative; font-family: var(--mono); font-size: 0.8125rem; }
 .version-select > summary {
   list-style: none; cursor: pointer; color: var(--ink-dim);
-  border: 1px solid var(--rule); border-radius: 5px; padding: 0.15rem 0.55rem;
+  border: 1px solid var(--line-bright); border-radius: 5px; padding: 0.15rem 0.55rem;
 }
 .version-select > summary::-webkit-details-marker { display: none; }
 .version-select > summary::after { content: " ▾"; opacity: 0.6; }
@@ -126,7 +126,7 @@ pre code { background: none; border: none; padding: 0; font-size: inherit; color
 .version-select > ul {
   position: absolute; right: 0; top: calc(100% + 0.4rem); z-index: 20;
   margin: 0; padding: 0.35rem; list-style: none; min-width: 11rem;
-  background: var(--bg-raised, #0f1319); border: 1px solid var(--rule);
+  background: var(--bg-raise); border: 1px solid var(--line-bright);
   border-radius: 7px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
 }
 .version-select > ul li { margin: 0; }
@@ -136,7 +136,7 @@ pre code { background: none; border: none; padding: 0; font-size: inherit; color
   font-size: 0.65rem; color: var(--bg); background: var(--phosphor);
   border-radius: 3px; padding: 0 0.3rem; margin-left: 0.35rem; vertical-align: middle;
 }
-.version-select .sep { border-top: 1px solid var(--rule); margin-top: 0.25rem; padding-top: 0.25rem; }
+.version-select .sep { border-top: 1px solid var(--line-bright); margin-top: 0.25rem; padding-top: 0.25rem; }
 
 /* ---------- hero ---------- */
 
