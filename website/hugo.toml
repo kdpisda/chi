@@ -14,6 +14,18 @@ enableRobotsTXT = true
   github = "https://github.com/kdpisda/chi"
   author = "KD"
   author_url = "https://kdpisda.in"
+  # current released version — the docs on this site track it. Bump on release
+  # and prepend a [[params.versions]] entry pointing older versions at their
+  # GitHub release notes (we don't archive per-version doc builds yet).
+  version = "0.2.0"
+
+  [[params.versions]]
+    name = "v0.2.0"
+    url = "/"
+    latest = true
+  [[params.versions]]
+    name = "v0.1.0"
+    url = "https://github.com/kdpisda/chi/releases/tag/v0.1.0"
 
 [menus]
   [[menus.main]]
@@ -42,6 +54,10 @@ enableRobotsTXT = true
     name = "Security"
     pageRef = "/docs/security"
     weight = 40
+  [[menus.docs]]
+    name = "Changelog"
+    pageRef = "/docs/changelog"
+    weight = 50
 
 [markup]
   [markup.highlight]

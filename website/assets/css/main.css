@@ -106,13 +106,37 @@ pre code { background: none; border: none; padding: 0; font-size: inherit; color
 .wordmark:hover { text-decoration: none; }
 .wordmark .glyph { color: var(--phosphor); margin-right: 0.4rem; }
 
-.site-nav { margin-left: auto; display: flex; gap: 1.5rem; }
+.site-nav { margin-left: auto; display: flex; gap: 1.5rem; align-items: center; }
 .site-nav a {
   font-family: var(--mono);
   font-size: 0.8125rem;
   color: var(--ink-dim);
 }
 .site-nav a:hover, .site-nav a[aria-current="true"] { color: var(--phosphor); text-decoration: none; }
+
+/* version selector — CSS-only <details> dropdown, no JS */
+.version-select { position: relative; font-family: var(--mono); font-size: 0.8125rem; }
+.version-select > summary {
+  list-style: none; cursor: pointer; color: var(--ink-dim);
+  border: 1px solid var(--rule); border-radius: 5px; padding: 0.15rem 0.55rem;
+}
+.version-select > summary::-webkit-details-marker { display: none; }
+.version-select > summary::after { content: " ▾"; opacity: 0.6; }
+.version-select[open] > summary { color: var(--phosphor); border-color: var(--phosphor); }
+.version-select > ul {
+  position: absolute; right: 0; top: calc(100% + 0.4rem); z-index: 20;
+  margin: 0; padding: 0.35rem; list-style: none; min-width: 11rem;
+  background: var(--bg-raised, #0f1319); border: 1px solid var(--rule);
+  border-radius: 7px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.version-select > ul li { margin: 0; }
+.version-select > ul a { display: block; padding: 0.3rem 0.5rem; border-radius: 4px; }
+.version-select > ul a:hover { background: rgba(61,220,132,0.08); }
+.version-select .tag {
+  font-size: 0.65rem; color: var(--bg); background: var(--phosphor);
+  border-radius: 3px; padding: 0 0.3rem; margin-left: 0.35rem; vertical-align: middle;
+}
+.version-select .sep { border-top: 1px solid var(--rule); margin-top: 0.25rem; padding-top: 0.25rem; }
 
 /* ---------- hero ---------- */
 

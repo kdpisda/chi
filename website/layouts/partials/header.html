@@ -5,6 +5,17 @@
       {{ range site.Menus.main }}
         <a href="{{ .URL }}"{{ if hasPrefix .URL "http" }} target="_blank" rel="noopener"{{ end }}{{ if and (ne $.RelPermalink nil) (eq .URL $.RelPermalink) }} aria-current="true"{{ end }}>{{ .Name }}</a>
       {{ end }}
+      {{ with site.Params.versions }}
+      <details class="version-select">
+        <summary>v{{ site.Params.version }}</summary>
+        <ul>
+          {{ range . }}
+          <li><a href="{{ .url }}"{{ if hasPrefix .url "http" }} target="_blank" rel="noopener"{{ end }}>{{ .name }}{{ if .latest }} <span class="tag">latest</span>{{ end }}</a></li>
+          {{ end }}
+          <li class="sep"><a href="/docs/changelog/">Changelog →</a></li>
+        </ul>
+      </details>
+      {{ end }}
     </nav>
   </div>
 </header>
