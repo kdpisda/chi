@@ -4,9 +4,14 @@ Chi ("kai") is an open-source autoresearch harness: point a fleet of LLM coding
 agents (any vendor) at any problem with a programmatic evaluator — a build, a
 correctness check, and a score — and let them iterate unattended.
 
-Status: v1 (Phases 0–1) — single coder agent, two adapters (headless vendor
-CLIs and a LiteLLM tool loop), enforced SQLite+JSONL run store, hard budget
-caps, two-layer steering, deterministic watchdog.
+Installed as **getchi (command: `chi`)** — the package is `getchi` on PyPI
+(the bare name "chi" collides with the go-chi router and others); the CLI you
+run is `chi`. Install it with `uv tool install getchi` or `pip install getchi`.
+
+Status: v0.2.0 — single coder agent, two adapters (headless vendor CLIs and a
+LiteLLM tool loop), enforced SQLite+JSONL run store, hard budget caps,
+two-layer steering, deterministic watchdog, and a director that self-stops on a
+target score or cost ceiling.
 
 ## Try it in 10 seconds (no API key)
 
