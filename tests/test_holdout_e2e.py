@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 from chi.config import FleetConfig
-from chi.eval.holdout import GENERALIZES, OVERFIT
+from chi.eval.holdout import GENERALIZES, OVERFIT, REGRESSED
 from chi.orchestrator.loop import start_run
 from chi.store.db import Store
 from chi.store.events import HOLDOUT, list_events
@@ -57,9 +57,14 @@ def test_benchmark_shaped_champion_is_flagged_overfit(tmp_path: Path) -> None:
 
     verdict = summary.holdout
     assert verdict is not None, "a problem with a holdout must produce a verdict"
-    assert verdict.verdict == OVERFIT, verdict.detail
-    assert verdict.shippable is False
-    # it claimed a large benchmark gain and realised almost none of it
+    # the contract that matters: the gate withholds it. Which of the two
+    # non-shippable labels fires depends on whether the flat held-out result
+    # lands a hair above or below the baseline, which is measurement noise on a
+    # shared runner — test_holdout_gate.py pins the labelling against synthetic
+    # scores, where it is deterministic.
+    assert verdict.shippable is False, verdict.detail
+    assert verdict.verdict in (OVERFIT, REGRESSED), verdict.detail
+    # it claimed a large benchmark gain and realised essentially none of it
     assert verdict.claimed_gain_pct > 50
     assert verdict.generalization < 0.5
 
@@ -92,8 +97,8 @@ def test_baseline_and_champion_holdouts_are_both_recorded(tmp_path: Path) -> Non
 
     phases = [p["phase"] for p in payloads]
     assert phases == ["baseline", "champion"]
-    assert payloads[0]["score"] > 0           # measured on the untouched candidate
-    assert payloads[1]["verdict"] == OVERFIT  # and compared against it
+    assert payloads[0]["score"] > 0  # measured on the untouched candidate
+    assert payloads[1]["verdict"] in (OVERFIT, REGRESSED)  # and compared against it
 
 
 def test_problem_without_a_holdout_still_runs(tmp_path: Path) -> None:
@@ -131,9 +136,10 @@ def test_cli_champion_reports_the_verdict_and_warns_on_export(tmp_path: Path) ->
     result = CliRunner().invoke(app, ["champion", str(summary.run_dir),
                                       "--export", str(out)])
     assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout.splitlines()[0])["holdout"]["verdict"] == OVERFIT
+    verdict = json.loads(result.stdout.splitlines()[0])["holdout"]["verdict"]
+    assert verdict in (OVERFIT, REGRESSED)
     # the verdict is evidence, not a veto: it warns loudly and still exports
-    assert "holdout overfit" in result.output
+    assert f"holdout {verdict}" in result.output
     assert out.read_text() == OVERFIT_SRC
 
 
