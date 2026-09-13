@@ -43,10 +43,20 @@ def test_three_agents_run_in_parallel_and_best_wins(tmp_path: Path) -> None:
     agents = {r["agent_id"] for r in store.query("SELECT agent_id FROM agents")}
     assert {"claude-A", "codex-B", "grok-C"} <= agents
 
-    # champion is the best across all three, and its strategy is recorded
+    # champion is the best across all three, and its strategy is recorded.
+    #
+    # Asserted as "an O(n) agent beat the O(n^2) one" rather than "grok-C won":
+    # NAIVE vs either O(n) candidate is a ~500x gap, so that ordering is solid,
+    # but BETTER and BEST are only 1.24x-1.72x apart on a ~0.1ms benchmark
+    # (measured), and the three coders coming through this test benchmark
+    # concurrently. Which of the two edges the other is CPython micro-timing
+    # under runner contention, not behaviour chi controls — pinning it made this
+    # test fail intermittently on CI while passing locally.
     champ = store.query("SELECT * FROM experiments WHERE correct=1 AND score_value IS NOT NULL"
                         " ORDER BY score_value ASC LIMIT 1")[0]
-    assert champ["author"] == "grok-C" and champ["strategy"] == "fused-tensorcore"
+    assert champ["author"] in {"codex-B", "grok-C"}, "the O(n^2) candidate must not win"
+    assert champ["strategy"] == {"codex-B": "left-looking",
+                                 "grok-C": "fused-tensorcore"}[champ["author"]]
     assert summary.champion_score == champ["score_value"]
 
     # each agent explored its own strategy — recorded on its experiments
