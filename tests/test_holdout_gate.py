@@ -152,7 +152,13 @@ def test_holdout_files_are_hidden_from_agent_workdirs(tmp_path):
     assert hidden == {"holdout_bench.py", "secret.json"}
 
 
-def test_bundled_problem_declares_a_holdout():
-    problem = load_problem(Path("problems/optimize_function"))
+def test_shared_demo_problem_has_no_holdout():
+    """optimize_function stays holdout-free: every run that uses it would pay a
+    baseline measurement for a feature it does not exercise."""
+    assert load_problem(Path("problems/optimize_function")).holdout is None
+
+
+def test_overfit_demo_problem_declares_a_holdout():
+    problem = load_problem(Path("problems/overfit_demo"))
     assert problem.holdout is not None
     assert problem.holdout.files == ["holdout_bench.py"]

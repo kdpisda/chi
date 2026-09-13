@@ -14,7 +14,7 @@ from chi.orchestrator.loop import start_run
 from chi.store.db import Store
 from chi.store.events import HOLDOUT, list_events
 
-PROBLEM_DIR = Path(__file__).parent.parent / "problems" / "optimize_function"
+PROBLEM_DIR = Path(__file__).parent.parent / "problems" / "overfit_demo"
 
 # Correct everywhere, but only fast on bench.py's fixed 4000-element input — the
 # one workload the fleet's score comes from. Every other size falls back to the
@@ -102,14 +102,18 @@ def test_baseline_and_champion_holdouts_are_both_recorded(tmp_path: Path) -> Non
 
 
 def test_problem_without_a_holdout_still_runs(tmp_path: Path) -> None:
-    """The gate is opt-in: an existing problem pack behaves exactly as before."""
+    """The gate is opt-in: a pack with no holdout behaves exactly as before.
+
+    problems/optimize_function is that pack — deliberately left without a
+    holdout so the shared demo problem (and the 50-odd tests that use it) pay
+    nothing for a feature they don't exercise.
+    """
     plain = tmp_path / "plain_problem"
     plain.mkdir()
-    for f in ("bench.py", "check.py", "candidate.py", "reference.py"):
-        (plain / f).write_bytes((PROBLEM_DIR / f).read_bytes())
-    manifest = (PROBLEM_DIR / "problem.yaml").read_text()
-    manifest = manifest[:manifest.index("holdout:")] + "timeout_seconds: 60\n"
-    (plain / "problem.yaml").write_text(manifest)
+    plain_src = Path(__file__).parent.parent / "problems" / "optimize_function"
+    for f in plain_src.iterdir():
+        (plain / f.name).write_bytes(f.read_bytes())
+    assert "holdout:" not in (plain / "problem.yaml").read_text()
 
     script = tmp_path / "plain.json"
     script.write_text(json.dumps([HONEST_SRC]))

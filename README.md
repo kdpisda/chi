@@ -101,9 +101,12 @@ and compares the gain it *claimed* with the gain it *realised*:
 
 An overfit champion can't satisfy a director target score, and `chi champion
 --export` warns before you ship it. Opt-in — a problem without a `holdout:`
-block behaves exactly as before. See `docs/holdout.md`, and
-`docs/autoresearch-gap-analysis.md` for how chi compares with the rest of the
-ecosystem.
+block behaves exactly as before.
+
+See it offline, no key needed: `chi run examples/holdout.yaml` replays a
+candidate that special-cases the benchmark's exact input, wins the score, and
+gets caught. See `docs/holdout.md`, and `docs/autoresearch-gap-analysis.md` for
+how chi compares with the rest of the ecosystem.
 
 ## Coder adapters
 

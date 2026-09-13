@@ -55,9 +55,25 @@ holdout:
   max_regression_pct: 5.0       # ...and don't get materially slower
 ```
 
-The bundled `problems/optimize_function` ships one. `bench.py` times a single
-fixed 4000-element input; `holdout_bench.py` scores three other sizes under a
-different seed. A genuine algorithmic win shows up in both.
+`problems/overfit_demo` ships one, and `examples/holdout.yaml` runs it offline
+with no key. `bench.py` times a single fixed 4000-element input;
+`holdout_bench.py` scores three other sizes under a different seed. A genuine
+algorithmic win shows up in both:
+
+```console
+$ chi run examples/holdout.yaml
+overfit  champion 0.081 ms (baseline 50.3) -> overfit: claims +99.8% on the
+         benchmark but realises only -1.2% held out
+honest   champion 0.079 ms (baseline 51.3) -> generalizes: claims +99.8%,
+         realises +99.9% held out (100% of the claim)
+```
+
+Two candidates, near-identical benchmark scores, opposite verdicts.
+
+**The shared `problems/optimize_function` deliberately has no holdout.** A
+holdout costs a baseline measurement on every run of that problem, and a pack
+most runs use shouldn't be taxed for a gate those runs never reach. Declare one
+where the question is worth asking.
 
 **A good holdout differs in the dimension a candidate could exploit.** If the
 benchmark is one input size, vary the size. If it is one seed, vary the seed. If
@@ -67,7 +83,7 @@ NoiseGuard.
 
 **Set `max_regression_pct` above the holdout's own run-to-run noise.** A margin
 tighter than the measurement spread turns a flat held-out result — the signature
-of an overfit win — into a spurious `regressed` verdict. The bundled problem uses
+of an overfit win — into a spurious `regressed` verdict. `overfit_demo` uses
 5.0 because its O(n²) baseline wobbles ~2.5%.
 
 ## How the workload stays held out

@@ -1,0 +1,3 @@
+[
+  "import itertools\n\n\ndef solve(xs: list[float]) -> list[float]:\n    # The same speedup, applied to the problem instead of the benchmark.\n    return list(itertools.accumulate(xs))\n"
+]
