@@ -18,6 +18,7 @@ from chi.config import (
     resolve_strategy,
 )
 from chi.eval.hashing import code_hash
+from chi.eval.holdout import HoldoutVerdict, build_holdout_gate
 from chi.eval.runner import evaluate
 from chi.orchestrator.steering import Steering
 from chi.orchestrator.watchdog import Watchdog
@@ -45,6 +46,65 @@ class RunSummary:
     champion_hash: str | None
     total_cost_usd: float
     status: str
+    holdout: HoldoutVerdict | None = None
+
+
+def holdout_ignore(problem: ProblemConfig) -> Callable | None:
+    """copytree `ignore` that keeps the held-out workload out of an agent workdir.
+
+    The whole point of a holdout is that the loop's selection pressure can't
+    reach it. An agent with a shell and a copy of the holdout script would tune
+    against it within a few iterations, so the files never leave chi's own
+    directory — see chi/eval/holdout.py.
+    """
+    if problem.holdout is None or not problem.holdout.files:
+        return None
+    private = set(problem.holdout.files)
+    return lambda directory, names: {n for n in names if n in private}
+
+
+def prepare_holdout_dir(source_problem_dir: Path, run_dir: Path,
+                        problem: ProblemConfig) -> Path | None:
+    """Materialise chi's private holdout directory (the full, unredacted pack)."""
+    if problem.holdout is None:
+        return None
+    holdout_dir = Path(run_dir) / "holdout"
+    if not holdout_dir.exists():
+        shutil.copytree(source_problem_dir, holdout_dir)
+    return holdout_dir
+
+
+def _record_holdout(store: Store, run_id: str, phase: str, payload: dict) -> None:
+    events.append_event(store, run_id, events.HOLDOUT, agent_id="holdout",
+                        payload={"phase": phase, **payload})
+
+
+def baseline_holdout(store: Store, run_id: str) -> float | None:
+    """The baseline's held-out score, recorded once when the run established it."""
+    rows = store.query(
+        "SELECT payload_json FROM events WHERE run_id=? AND type=?"
+        " ORDER BY event_id", (run_id, events.HOLDOUT))
+    for row in rows:
+        payload = json.loads(row["payload_json"])
+        if payload.get("phase") == "baseline" and payload.get("score") is not None:
+            return float(payload["score"])
+    return None
+
+
+def _gate_champion(store: Store, run_id: str, run_dir: Path, problem: ProblemConfig,
+                   base_workdir: Path, baseline_score: float | None,
+                   champion_score: float | None) -> HoldoutVerdict | None:
+    """Re-score the exported champion on the held-out workload and record the verdict."""
+    gate = build_holdout_gate(problem, Path(run_dir) / "holdout")
+    if gate is None:
+        return None
+    verdict = gate.verify(
+        base_workdir / problem.candidate,
+        baseline_holdout=baseline_holdout(store, run_id),
+        baseline_score=baseline_score, champion_score=champion_score,
+    )
+    _record_holdout(store, run_id, "champion", verdict.as_payload())
+    return verdict
 
 
 def _make_adapter(
@@ -266,8 +326,12 @@ def start_run(
         "run_name": fleet.run_name, "problem": str(fleet.problem),
         "cwd": str(Path.cwd()), "started_at": utcnow(),
     }, sessions_path=sessions_path)
+    # the holdout pack is copied WHOLE into chi's private directory first, then
+    # the agent workdir is copied without the held-out files
+    source_problem = load_problem(fleet.problem)
+    prepare_holdout_dir(fleet.problem, run_dir, source_problem)
     base_workdir = run_dir / "workdir"
-    shutil.copytree(fleet.problem, base_workdir)
+    shutil.copytree(fleet.problem, base_workdir, ignore=holdout_ignore(source_problem))
     problem = load_problem(base_workdir)
     policies = fleet.policies
     budget = BudgetTracker(fleet.budgets.total_usd, fleet.budgets.per_role_usd,
@@ -283,6 +347,15 @@ def start_run(
     baseline = evaluate(problem, base_workdir, store=store, run_id=run_id,
                         agent_id="baseline")
     baseline_score = baseline.score_value
+
+    # the held-out workload's baseline, measured once on the untouched candidate.
+    # Every later generalization verdict is relative to this number, so it has to
+    # be taken before any agent has edited anything.
+    gate = build_holdout_gate(problem, run_dir / "holdout")
+    if gate is not None:
+        median, samples, detail = gate.measure(base_workdir / problem.candidate)
+        _record_holdout(store, run_id, "baseline",
+                        {"score": median, "samples": samples, "detail": detail})
 
     return _launch_fleet(
         store, run_id, run_dir, fleet, problem, policies, coders, steering,
@@ -306,11 +379,17 @@ def _launch_fleet(
     completion_fn: Callable | None,
     stop_event: threading.Event | None,
     sessions_path: Path | None,
+    gate_holdout: bool = True,
 ) -> RunSummary:
     """Run all coders for policies.max_iterations, aggregate, export champion.
 
     Shared by start_run (round 1, after it creates the run + baseline) and
     run_slice (rounds 2..N, continuing the same run). Deterministic; no LLM.
+
+    `gate_holdout` is off for a director slice: the director runs the holdout
+    itself, and only on a win that already survived the NoiseGuard. Paying for it
+    at every slice boundary too would double the cost and record a second,
+    possibly disagreeing verdict for the same champion.
     """
     from chi.userconfig import record_session
 
@@ -322,7 +401,8 @@ def _launch_fleet(
     for index, coder in enumerate(coders):
         coder_workdir = run_dir / f"workdir-{coder.id}" if len(coders) > 1 else base_workdir
         if coder_workdir != base_workdir and not coder_workdir.exists():
-            shutil.copytree(fleet.problem, coder_workdir)
+            shutil.copytree(fleet.problem, coder_workdir,
+                            ignore=holdout_ignore(problem))
         # INSERT OR IGNORE: a later slice re-uses the agent row from the first slice
         store.execute(
             "INSERT OR IGNORE INTO agents (agent_id, run_id, adapter, model, workdir,"
@@ -355,8 +435,14 @@ def _launch_fleet(
         status = "done"
 
     champ = ledger.champion(store, run_id, problem.score.direction)
+    holdout_verdict: HoldoutVerdict | None = None
     if champ is not None and champ["author"] not in (None, "baseline"):
         _export_champion(store, run_id, champ, coders, run_dir, base_workdir, problem)
+        # the win is only a win if it survives a workload the fleet never saw
+        if gate_holdout:
+            holdout_verdict = _gate_champion(
+                store, run_id, run_dir, problem, base_workdir, baseline_score,
+                champ["score_value"])
     events.append_event(store, run_id, events.STOP, payload={"status": status})
     store.execute("UPDATE runs SET ended_at=?, status=? WHERE run_id=?",
                   (utcnow(), status, run_id))
@@ -370,7 +456,7 @@ def _launch_fleet(
         baseline_score=baseline_score,
         champion_score=None if champ is None else champ["score_value"],
         champion_hash=None if champ is None else champ["code_hash"],
-        total_cost_usd=budget.spent, status=status,
+        total_cost_usd=budget.spent, status=status, holdout=holdout_verdict,
     )
 
 
@@ -407,5 +493,5 @@ def run_slice(
     return _launch_fleet(
         store, run_id, run_dir, sliced, problem, policies, coders, steering,
         auto_submitter, budget, baseline_score, completion_fn, stop_event,
-        sessions_path,
+        sessions_path, gate_holdout=False,
     )

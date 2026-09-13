@@ -1,0 +1,29 @@
+name: overfit_demo
+description: >
+  Minimize the runtime of solve(xs) -> prefix sums of xs, the same task as
+  optimize_function — but this pack declares a HOLDOUT, so a win has to survive a
+  workload it was never optimised against. bench.py times one fixed
+  4000-element input, which is the number the fleet hill-climbs and therefore the
+  number it can overfit; holdout_bench.py scores three other sizes under a
+  different seed and never enters an agent workdir. A candidate that
+  special-cases length 4000 wins the benchmark and is caught here.
+candidate: candidate.py
+entrypoints:
+  correctness: "{python} check.py {candidate} --seed {seed}"
+  benchmark: "{python} bench.py {candidate}"
+score:
+  metric: runtime_ms
+  direction: minimize
+  repeats: 5
+correctness:
+  seeds: [11, 27, 43]
+  tolerance: 1.0e-6
+holdout:
+  benchmark: "{python} holdout_bench.py {candidate}"
+  files: [holdout_bench.py]
+  repeats: 3
+  min_generalization: 0.5
+  # above this workload's own run-to-run noise (~2.5% on the O(n^2) baseline),
+  # so a flat held-out result reads as "didn't transfer", not "got slower"
+  max_regression_pct: 5.0
+timeout_seconds: 60
