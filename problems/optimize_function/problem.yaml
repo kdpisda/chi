@@ -14,4 +14,16 @@ score:
 correctness:
   seeds: [11, 27, 43]
   tolerance: 1.0e-6
+# Held-out scoring. bench.py times one fixed 4000-element input, so that input is
+# what the fleet's selection pressure points at. holdout_bench.py scores three
+# other sizes under a different seed and never enters an agent workdir, so chi
+# can tell a real speedup from one shaped around the benchmark.
+holdout:
+  benchmark: "{python} holdout_bench.py {candidate}"
+  files: [holdout_bench.py]
+  repeats: 3
+  min_generalization: 0.5
+  # above this workload's own run-to-run noise (~2.5% on the O(n^2) baseline),
+  # so a flat held-out result reads as "didn't transfer", not "got slower"
+  max_regression_pct: 5.0
 timeout_seconds: 60

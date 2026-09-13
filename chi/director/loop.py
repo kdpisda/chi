@@ -23,6 +23,7 @@ class Director:
                  round_runner: Callable[[int], RoundResult], strategist,
                  researcher=None, *, direction: str = "minimize",
                  emit: Callable[[str], None] | None = None, noise_guard=None,
+                 holdout_check: Callable | None = None,
                  candidate_name: str = "candidate.py",
                  stuck_k: int = 2, iterations_per_round: int = 2,
                  per_coder_strategy: dict | None = None,
@@ -39,6 +40,14 @@ class Director:
         self._direction = direction
         self._emit = emit or (lambda line: None)
         self._noise_guard = noise_guard
+        # re-scores a confirmed winner on a workload the fleet never optimised
+        # against; returns a HoldoutVerdict (or None when the problem has no
+        # holdout). A champion that only moved the benchmark must not be able to
+        # satisfy the target and end the run — that is how an overfit result ships.
+        # The verdict is deliberately sticky: it describes the CURRENT champion and
+        # is refreshed whenever one verifiably improves, so a plateaued round can't
+        # launder a champion the holdout already refuted.
+        self._holdout_check = holdout_check
         self._candidate_name = candidate_name
         self._stuck_k = stuck_k
         self._iters = iterations_per_round
@@ -56,14 +65,20 @@ class Director:
         self._target_score = target_score
         self._cost_ceiling = cost_ceiling_usd
         self.halted_reason: str | None = None
+        self.last_holdout = None
         self.cumulative_benchmarks = 0
         self.cumulative_cost = 0.0
 
     def _target_met(self, best: float | None) -> bool:
         if self._target_score is None or best is None:
             return False
-        return (best <= self._target_score if self._direction == "minimize"
-                else best >= self._target_score)
+        hit = (best <= self._target_score if self._direction == "minimize"
+               else best >= self._target_score)
+        # a score that only exists on the optimised benchmark has not met the
+        # goal — keep researching rather than handing back an overfit champion
+        if hit and self.last_holdout is not None and not self.last_holdout.shippable:
+            return False
+        return hit
 
     def run(self, stop_event: threading.Event) -> None:
         prev_best: float | None = None
@@ -93,6 +108,18 @@ class Director:
                 noise_verified = verdict.is_real_improvement
                 if not verdict.is_real_improvement:
                     state = DirectorState.PLATEAUED
+            # a noise-verified win is real *on the benchmark*. Whether it is a
+            # real speedup at all is a second question, and the expensive answer
+            # is only worth buying for a win that already survived the noise
+            # guard — so the holdout runs exactly here.
+            if noise_verified and self._holdout_check is not None:
+                candidate = self._run_dir / "workdir" / self._candidate_name
+                self.last_holdout = self._holdout_check(candidate, digest.best_score)
+                if self.last_holdout is not None:
+                    self.cumulative_benchmarks += self.last_holdout.benchmarks_run
+                    if not self.last_holdout.shippable:
+                        self._emit(f"⚠ holdout {self.last_holdout.verdict}:"
+                                   f" {self.last_holdout.detail}")
             # only spend the (expensive) research/strategy brain when the round
             # actually produced new information — new candidates were benchmarked,
             # the score moved, or dead classes grew. A round that evaluated nothing
@@ -115,6 +142,8 @@ class Director:
                        "cum_cost": self.cumulative_cost, "researched": bool(findings)}
             if noise_verified is not None:
                 payload["noise_verified"] = noise_verified
+            if self.last_holdout is not None:
+                payload["holdout"] = self.last_holdout.verdict
             events.append_event(self._store, self._run_id, events.DIRECTOR_ROUND,
                                 payload=payload, cost_usd=result.cost_usd)
             verified_note = ("" if noise_verified is None

@@ -10,8 +10,9 @@ run is `chi`. Install it with `uv tool install getchi` or `pip install getchi`.
 
 Status: v0.2.0 — single coder agent, two adapters (headless vendor CLIs and a
 LiteLLM tool loop), enforced SQLite+JSONL run store, hard budget caps,
-two-layer steering, deterministic watchdog, and a director that self-stops on a
-target score or cost ceiling.
+two-layer steering, deterministic watchdog, a director that self-stops on a
+target score or cost ceiling, and a held-out score gate that catches a champion
+which moved the benchmark without getting faster.
 
 ## Try it in 10 seconds (no API key)
 
@@ -75,6 +76,34 @@ A problem is a directory with a `problem.yaml` (see
 `problems/optimize_function/`): entrypoint commands for correctness and
 benchmark, held-out seeds, and a score metric/direction. Correctness is a hard
 gate; candidates never see reference outputs.
+
+## Did the win actually transfer?
+
+Every autoresearch loop optimises against one frozen benchmark — which makes
+that benchmark the selection pressure, so candidates drift toward its input
+size, its seed, its shape rather than toward being faster. The pattern's
+most-cited result shipped with its author's own "probably somewhat overfit";
+a widely shared test-suite win measured 163s → 100s locally and 14min → 13min
+in CI.
+
+So chi measures the gap instead of hoping it's zero. A problem can declare a
+**holdout**: a second scoring command over a different workload, whose files
+never enter an agent workdir. When a champion is crowned chi re-scores it there
+and compares the gain it *claimed* with the gain it *realised*:
+
+    holdout:
+      benchmark: "{python} holdout_bench.py {candidate}"
+      files: [holdout_bench.py]     # excluded from every agent worktree
+      min_generalization: 0.5       # realise at least half the claimed gain
+
+    ⚠ holdout overfit: claims +91.2% on the benchmark but realises only
+      +0.4% held out (0% of the claim, floor 50%)
+
+An overfit champion can't satisfy a director target score, and `chi champion
+--export` warns before you ship it. Opt-in — a problem without a `holdout:`
+block behaves exactly as before. See `docs/holdout.md`, and
+`docs/autoresearch-gap-analysis.md` for how chi compares with the rest of the
+ecosystem.
 
 ## Coder adapters
 

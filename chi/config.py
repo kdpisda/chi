@@ -72,6 +72,28 @@ class CorrectnessCfg(BaseModel):
     tolerance: float = 1e-6
 
 
+class HoldoutCfg(BaseModel):
+    """A second scoring command over a workload the agents never optimise against.
+
+    `files` are chi's: they are excluded from every agent workdir and live only
+    in the run's private holdout directory, so a candidate cannot read the
+    held-out workload, run it, or tune to it. See chi/eval/holdout.py.
+    """
+
+    benchmark: str  # template with {candidate} and {python}
+    files: list[str] = Field(default_factory=list)  # kept out of agent workdirs
+    repeats: int = 3
+    # the held-out workload must realise at least this share of the gain the
+    # champion claims on the optimised benchmark (0.5 = half the claim)
+    min_generalization: float = 0.5
+    # ...and must not be more than this much WORSE than the baseline. Set it
+    # ABOVE the holdout benchmark's own run-to-run noise: a margin tighter than
+    # the measurement spread turns a flat held-out result (the signature of an
+    # overfit win) into a spurious "regressed" verdict.
+    max_regression_pct: float = 1.0
+    timeout_seconds: int | None = None  # defaults to the problem's timeout
+
+
 class ProblemConfig(BaseModel):
     name: str
     description: str = ""
@@ -79,6 +101,9 @@ class ProblemConfig(BaseModel):
     entrypoints: EntrypointsCfg
     score: ScoreCfg = Field(default_factory=ScoreCfg)
     correctness: CorrectnessCfg
+    # held-out scoring: catches a champion that moved the benchmark without
+    # making the work faster. Optional; problems without it behave as before.
+    holdout: HoldoutCfg | None = None
     timeout_seconds: int = 60
     dir: Path | None = None
     # authoritative tier: an external leaderboard reached via popcorn-cli.
