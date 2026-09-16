@@ -54,9 +54,9 @@ def test_three_agents_run_in_parallel_and_best_wins(tmp_path: Path) -> None:
     # test fail intermittently on CI while passing locally.
     champ = store.query("SELECT * FROM experiments WHERE correct=1 AND score_value IS NOT NULL"
                         " ORDER BY score_value ASC LIMIT 1")[0]
-    assert champ["author"] in {"codex-B", "grok-C"}, "the O(n^2) candidate must not win"
-    assert champ["strategy"] == {"codex-B": "left-looking",
-                                 "grok-C": "fused-tensorcore"}[champ["author"]]
+    winners = {"codex-B": ("left-looking", BETTER), "grok-C": ("fused-tensorcore", BEST)}
+    assert champ["author"] in winners, "the O(n^2) candidate must not win"
+    assert champ["strategy"] == winners[champ["author"]][0]
     assert summary.champion_score == champ["score_value"]
 
     # each agent explored its own strategy — recorded on its experiments
@@ -64,9 +64,10 @@ def test_three_agents_run_in_parallel_and_best_wins(tmp_path: Path) -> None:
         "SELECT strategy FROM experiments WHERE author LIKE '%-%'")}
     assert {"blocked", "left-looking", "fused-tensorcore"} <= strategies
 
-    # the winning candidate is exported into the shared workdir for /champion --export
+    # the winning candidate — whichever of the two it is — is exported into the
+    # shared workdir for /champion --export
     exported = (summary.run_dir / "workdir" / "candidate.py").read_text()
-    assert "itertools.accumulate" in exported
+    assert exported == winners[champ["author"]][1]
 
 
 def test_dedup_shared_across_agents(tmp_path: Path) -> None:
