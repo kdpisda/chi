@@ -398,10 +398,27 @@ def status(run_dir: Path = typer.Argument(...)) -> None:
     store, run_id = _open_run(run_dir)
     row = store.query("SELECT * FROM runs WHERE run_id=?", (run_id,))[0]
     typer.echo(json.dumps(dict(row)))
+    holdout = _champion_holdout(store, run_id)
+    if holdout is not None:
+        typer.echo(json.dumps({"holdout": holdout}))
     for event in store.query(
         "SELECT * FROM events WHERE run_id=? ORDER BY event_id DESC LIMIT 10", (run_id,)
     ):
         typer.echo(json.dumps(dict(event)))
+
+
+def _champion_holdout(store, run_id: str) -> dict | None:
+    """The latest champion-phase holdout verdict for a run, if one was measured."""
+    from chi.store import events as events_mod
+
+    rows = store.query(
+        "SELECT payload_json FROM events WHERE run_id=? AND type=?"
+        " ORDER BY event_id DESC", (run_id, events_mod.HOLDOUT))
+    for row in rows:
+        payload = json.loads(row["payload_json"])
+        if payload.get("phase") in ("champion", "director"):
+            return payload
+    return None
 
 
 @app.command()
@@ -416,8 +433,19 @@ def champion(
     if champ is None:
         typer.echo("no champion yet")
         raise typer.Exit(1)
-    typer.echo(json.dumps({"code_hash": champ["code_hash"],
-                           "score_value": champ["score_value"]}))
+    holdout = _champion_holdout(store, run_id)
+    out = {"code_hash": champ["code_hash"], "score_value": champ["score_value"]}
+    if holdout is not None:
+        out["holdout"] = {k: holdout.get(k) for k in
+                          ("verdict", "claimed_gain_pct", "holdout_gain_pct",
+                           "generalization")}
+    typer.echo(json.dumps(out))
+    # a champion that only moved the benchmark is the thing you must not ship
+    # unknowingly. chi says so at the moment of export and still exports: the
+    # verdict is evidence for your decision, not a veto over it.
+    if holdout is not None and holdout.get("verdict") in ("overfit", "regressed"):
+        typer.echo(f"⚠ holdout {holdout['verdict']}: {holdout.get('detail', '')}",
+                   err=True)
     if export is not None:
         from chi.eval.hashing import code_hash
 
