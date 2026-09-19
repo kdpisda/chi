@@ -27,3 +27,7 @@ Angle ids are referenced from posts.jsonl. Add angles by hand at the bottom.
   straightener.
 
 ## Added by hand
+
+- **wiring** — a mechanism in the repo is not a mechanism on the path you ship.
+  The NoiseGuard only runs under the director; `chi run` promotes the best
+  recorded score with no re-benchmark.
