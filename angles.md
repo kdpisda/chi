@@ -31,3 +31,8 @@ Angle ids are referenced from posts.jsonl. Add angles by hand at the bottom.
 - **wiring** — a mechanism in the repo is not a mechanism on the path you ship.
   The NoiseGuard only runs under the director; `chi run` promotes the best
   recorded score with no re-benchmark.
+
+- **proxymetric** — the score is a proxy, and the proxy has its own bias. The
+  noisy_bench pack prices executed Python line events, so it ranks an O(n)
+  rewrite below the O(n^2) baseline and moves 300 points when two statements
+  are joined onto one line. A fleet optimizes the metric, not the goal.
