@@ -1,0 +1,15 @@
+{{ define "main" }}
+<div class="post-wrap legal">
+  <article class="prose">
+    {{ partial "legal-nav.html" . }}
+    <h1>{{ .Title }}</h1>
+    {{ with .Description }}<p class="desc">{{ . }}</p>{{ end }}
+    {{ .Content }}
+    <div class="docs-index">
+      {{ range .RegularPages.ByTitle.Reverse }}
+      <a class="card" href="{{ .RelPermalink }}"><h3>{{ .Title }}</h3><p>{{ .Description }}</p></a>
+      {{ end }}
+    </div>
+  </article>
+</div>
+{{ end }}

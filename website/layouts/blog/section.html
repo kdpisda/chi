@@ -1,0 +1,31 @@
+{{ define "main" }}
+{{ $pager := .Paginate .RegularPages }}
+<div class="blog-wrap">
+  <header class="blog-head">
+    <p class="section-label">blog</p>
+    <h1>{{ .Title }}</h1>
+    {{ with .Description }}<p class="sub">{{ . }}</p>{{ end }}
+    {{ with .OutputFormats.Get "rss" }}
+    <p class="blog-feed"><a href="{{ .RelPermalink }}">RSS feed &rarr;</a></p>
+    {{ end }}
+  </header>
+
+  {{ with $pager.Pages }}
+  <div class="post-list">
+    {{ range $i, $p := . }}
+      {{ partial "post-card.html" (dict "page" $p "lead" (and (eq $i 0) (eq $pager.PageNumber 1))) }}
+    {{ end }}
+  </div>
+  {{ else }}
+  <p class="blog-empty">No posts yet. The first one is on its way.</p>
+  {{ end }}
+
+  {{ if gt $pager.TotalPages 1 }}
+  <nav class="blog-pager" aria-label="Blog pages">
+    <span>{{ with $pager.Prev }}<a href="{{ .URL }}">&larr; Newer posts</a>{{ end }}</span>
+    <span class="count">page {{ $pager.PageNumber }} / {{ $pager.TotalPages }}</span>
+    <span>{{ with $pager.Next }}<a href="{{ .URL }}">Older posts &rarr;</a>{{ end }}</span>
+  </nav>
+  {{ end }}
+</div>
+{{ end }}

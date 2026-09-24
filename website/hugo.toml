@@ -6,9 +6,19 @@ baseURL = "https://getchi.dev/"
 locale = "en-us"
 title = "getchi (chi) — an autoresearch harness CLI"
 
-disableKinds = ["taxonomy", "term", "rss"]
+disableKinds = ["taxonomy", "term"]
 enableRobotsTXT = true
 enableGitInfo = true
+
+# RSS only where it's useful: the blog section opts in from its own front matter
+# (content/blog/_index.md → outputs), so home and docs stay HTML-only.
+[outputs]
+  home = ["html"]
+  section = ["html"]
+
+# Blog listing page size.
+[pagination]
+  pagerSize = 12
 
 # Google Analytics 4 — getchi.dev property (Happychases account). Hugo's internal
 # gtag.js template reads this ID and renders the tag only in production builds
@@ -26,6 +36,44 @@ enableGitInfo = true
   # GitHub release notes (we don't archive per-version doc builds yet).
   version = "0.2.0"
 
+  # Newsletter (Sendy, self-hosted at marketing.happychases.com — same instance
+  # as kdpisda.in and jeenotes). OFF while sendyList is empty: the subscribe
+  # form isn't rendered and .github/workflows/newsletter.yml skips.
+  # sendyList = the `list` value from the Sendy list's *embed form* code — not the
+  # hosted-page ?f= token (different encryption; subscribe fails with it).
+  # newsletterFrom must be a verified sender for the Sendy brand (Amazon SES).
+  sendyUrl = "https://marketing.happychases.com"
+  sendyList = "XoEV4oPICDowcTF8m532Xw"
+  newsletterFrom = ""
+
+  # "Find chi elsewhere" icon row in the site-wide newsletter block
+  # (layouts/partials/newsletter-form.html). Order = display order; `icon` is one
+  # of: github, pypi, x, linkedin, youtube, instagram, rss, email.
+  [[params.social]]
+    name = "GitHub"
+    url = "https://github.com/kdpisda/chi"
+    icon = "github"
+  [[params.social]]
+    name = "PyPI"
+    url = "https://pypi.org/project/getchi/"
+    icon = "pypi"
+  [[params.social]]
+    name = "X"
+    url = "https://x.com/kdpisda"
+    icon = "x"
+  [[params.social]]
+    name = "LinkedIn"
+    url = "https://www.linkedin.com/in/kdpisda/"
+    icon = "linkedin"
+  [[params.social]]
+    name = "YouTube"
+    url = "https://www.youtube.com/@kdpisda"
+    icon = "youtube"
+  [[params.social]]
+    name = "RSS"
+    url = "/blog/index.xml"
+    icon = "rss"
+
   [[params.versions]]
     name = "v0.2.0"
     url = "/"
@@ -39,6 +87,10 @@ enableGitInfo = true
     name = "Docs"
     pageRef = "/docs"
     weight = 10
+  [[menus.main]]
+    name = "Blog"
+    pageRef = "/blog"
+    weight = 15
   [[menus.main]]
     name = "GitHub"
     url = "https://github.com/kdpisda/chi"
