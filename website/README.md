@@ -118,7 +118,23 @@ Sendy instance.
    `SENDY_BRAND_ID`, `NEWSLETTER_FROM_NAME` (default "chi (getchi.dev)") and
    `NEWSLETTER_FROM_EMAIL` (overrides `newsletterFrom`).
 
-The site doesn't have a privacy page yet. Once it collects emails, it should
-say what's stored (name/email in Sendy on marketing.happychases.com) and how
-to unsubscribe. kdpisda.in's `content/legal/privacy.md` is a good model.
+Before turning it on, set the new Sendy list to **double opt-in**. The
+privacy policy and terms say subscribers confirm their address.
+
+## Legal pages
+
+`content/legal/` has an overview, privacy, terms and cookies page, with
+`layouts/legal/` as their layout. They're linked from the footer and from the
+subscribe form. The split they describe:
+
+- **chi, the software:** © Kuldeep Pisda, Apache-2.0 (see the root `NOTICE`),
+  no telemetry.
+- **getchi.dev, the newsletter and marketing:** operated by HappyChases Media
+  Works OPC Private Limited on his behalf. HappyChases is the data fiduciary for
+  subscriber and analytics data. The privacy contact is the same as on
+  kdpisda.in.
+
+Update the pages (and their "Last updated" line) whenever what the site
+collects changes, for example a new analytics tool, a new form, or a hosted
+chi service.
 

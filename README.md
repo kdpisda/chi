@@ -127,4 +127,4 @@ how chi compares with the rest of the ecosystem.
 
 See `docs/superpowers/specs/2026-07-25-chi-v1-design.md` (v1 design, grounded
 in a multi-agent fleet postmortem) and `docs/product-spec-v1.md` (full product
-spec). License: Apache-2.0.
+spec). License: Apache-2.0, © Kuldeep Pisda (see `NOTICE`).

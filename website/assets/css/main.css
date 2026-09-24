@@ -835,6 +835,30 @@ pre code { background: none; border: none; padding: 0; font-size: inherit; color
 }
 .section .newsletter { margin-top: 2.5rem; }
 
+/* ---------- legal ---------- */
+
+.legal-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 2rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+.legal-nav a {
+  color: var(--ink-dim);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+}
+.legal-nav a:hover { color: var(--ink); text-decoration: none; }
+.legal-nav a[aria-current="page"] { color: var(--phosphor); border-color: var(--phosphor); background: var(--phosphor-dim); }
+.legal .prose h2:first-of-type { margin-top: 2rem; }
+.prose .docs-index .card h3 { margin: 0 0 0.4rem; }
+.prose .docs-index .card p { margin: 0; color: var(--ink-dim); }
+.newsletter-legal, .prose .newsletter-legal { margin: 0.6rem 0 0; font-size: 0.75rem; color: var(--ink-faint); }
+.newsletter-legal a { color: var(--ink-dim); text-decoration: underline; text-underline-offset: 2px; }
+
 /* 404 */
 .notfound {
   max-width: var(--max);

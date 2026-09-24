@@ -19,6 +19,7 @@
       <button type="submit">subscribe</button>
     </div>
     <label class="newsletter-consent"><input type="checkbox" name="gdpr" required> I agree to receive email updates about new posts.</label>
+    <p class="newsletter-legal">Run by HappyChases Media Works OPC Pvt Ltd via Sendy. See the <a href="{{ (site.GetPage "/legal/privacy").RelPermalink }}">privacy policy</a>.</p>
   </form>
   {{ else }}
   {{ with $blog }}{{ with .OutputFormats.Get "rss" }}<p class="newsletter-rss"><a href="{{ .RelPermalink }}">Subscribe via RSS &rarr;</a></p>{{ end }}{{ end }}

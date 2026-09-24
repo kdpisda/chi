@@ -1,0 +1,7 @@
+{{- $legal := site.GetPage "/legal" -}}
+<nav class="legal-nav" aria-label="Legal">
+  <a href="{{ $legal.RelPermalink }}"{{ if eq $.RelPermalink $legal.RelPermalink }} aria-current="page"{{ end }}>overview</a>
+  {{ range $legal.RegularPages.ByTitle.Reverse }}
+  <a href="{{ .RelPermalink }}"{{ if eq $.RelPermalink .RelPermalink }} aria-current="page"{{ end }}>{{ .Title | lower }}</a>
+  {{ end }}
+</nav>

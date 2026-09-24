@@ -1,0 +1,10 @@
+{{ define "main" }}
+<div class="post-wrap legal">
+  <article class="prose">
+    {{ partial "legal-nav.html" . }}
+    <h1>{{ .Title }}</h1>
+    {{ with .Description }}<p class="desc">{{ . }}</p>{{ end }}
+    {{ .Content }}
+  </article>
+</div>
+{{ end }}
