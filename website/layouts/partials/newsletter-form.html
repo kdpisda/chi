@@ -1,0 +1,26 @@
+{{- /* Sendy subscribe form. Renders only when params.sendyUrl + params.sendyList
+       are set; otherwise falls back to the blog RSS link. Posts to Sendy's
+       /subscribe (double opt-in; Sendy hosts the confirm/thanks pages). The same
+       list receives an email per new post via .github/workflows/newsletter.yml. */ -}}
+{{- $blog := site.GetPage "/blog" -}}
+<section class="newsletter" aria-label="Get new posts by email">
+  <p class="section-label">newsletter</p>
+  <h2>Get new posts by email</h2>
+  <p class="sub">One email per post — guides, mechanisms, and honest comparisons. No spam; unsubscribe anytime.</p>
+  {{ if and site.Params.sendyUrl site.Params.sendyList }}
+  <form class="newsletter-form" action="{{ site.Params.sendyUrl }}/subscribe" method="post" accept-charset="utf-8">
+    <input type="hidden" name="list" value="{{ site.Params.sendyList }}">
+    <input type="hidden" name="subform" value="yes">
+    <div class="newsletter-hp" aria-hidden="true"><label>Leave this empty <input type="text" name="hp" tabindex="-1" autocomplete="off"></label></div>
+    <div class="newsletter-row">
+      <label class="visually-hidden" for="nl-email">Email address</label>
+      <span class="prompt" aria-hidden="true">$</span>
+      <input id="nl-email" type="email" name="email" required placeholder="you@example.com" autocomplete="email">
+      <button type="submit">subscribe</button>
+    </div>
+    <label class="newsletter-consent"><input type="checkbox" name="gdpr" required> I agree to receive email updates about new posts.</label>
+  </form>
+  {{ else }}
+  {{ with $blog }}{{ with .OutputFormats.Get "rss" }}<p class="newsletter-rss"><a href="{{ .RelPermalink }}">Subscribe via RSS &rarr;</a></p>{{ end }}{{ end }}
+  {{ end }}
+</section>

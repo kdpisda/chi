@@ -33,6 +33,8 @@ chi run examples/offline.yaml` "sh" }}
       </p>
     </aside>
 
+    {{ partial "newsletter-form.html" . }}
+
     {{ $share := .Permalink | urlquery }}
     {{ $title := .Title | urlquery }}
     <p class="post-share">

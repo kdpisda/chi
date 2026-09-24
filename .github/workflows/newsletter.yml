@@ -1,0 +1,100 @@
+# Emails newsletter subscribers (Sendy) about each newly published blog post.
+#
+# Runs after every successful deploy-pages run on main, so the post is live
+# before the email goes out. scripts/newsletter/sent.txt is the committed
+# ledger of emailed permalinks; each live post not in it is added and pushed
+# to main first, then gets one Sendy campaign built from the post's
+# `newsletter:` front matter. Pushing before sending means a failure can drop
+# an email but never double-send one. Same flow as kdpisda/portfolio's
+# newsletter.yaml (itself modelled on jeenotes' email-campaigns.yml).
+#
+# Off until params.sendyList is set in website/hugo.toml: the job then logs a
+# notice and does nothing, so deploys stay green before Sendy is configured.
+name: newsletter
+
+on:
+  workflow_run:
+    workflows: ["deploy-pages"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List pending posts without sending"
+        type: boolean
+        default: false
+      max_posts:
+        description: "Refuse to send if more than this many posts are pending"
+        required: false
+        default: "3"
+
+permissions:
+  contents: write     # push the sent.txt ledger to main
+
+concurrency: { group: newsletter, cancel-in-progress: false }
+
+env:
+  # stdlib + PyYAML only; no project install needed
+  RUN: uv run --no-project --with PyYAML==6.0.2 python scripts/newsletter/newsletter.py
+
+jobs:
+  send:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with: { ref: main }
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
+        with:
+          python-version: "3.12"
+      - name: Check configuration
+        id: cfg
+        run: |
+          $RUN configured >> "$GITHUB_OUTPUT"
+          grep -q 'enabled=true' "$GITHUB_OUTPUT" || \
+            echo "::notice::Newsletter is off (params.sendyList is empty in website/hugo.toml); nothing to do."
+      - name: Dry run
+        if: steps.cfg.outputs.enabled == 'true' && inputs.dry_run
+        env:
+          NEWSLETTER_MAX_POSTS: ${{ inputs.max_posts }}
+        run: $RUN
+      - name: Require Sendy API key
+        # Checked before reserving: a post reserved without a key to send it
+        # would be marked as emailed and silently skipped.
+        if: steps.cfg.outputs.enabled == 'true' && !inputs.dry_run
+        env:
+          SENDY_API_KEY: ${{ secrets.SENDY_API_KEY }}
+        run: |
+          [ -n "$SENDY_API_KEY" ] && exit 0
+          echo "::error::Set the SENDY_API_KEY repo secret; nothing was reserved or sent."
+          exit 1
+      - name: Reserve new posts in the ledger
+        if: steps.cfg.outputs.enabled == 'true' && !inputs.dry_run
+        env:
+          NEWSLETTER_MAX_POSTS: ${{ inputs.max_posts }}
+        run: $RUN reserve "$RUNNER_TEMP/to-send.txt"
+      - name: Push ledger before sending
+        # The ledger must be durable on main *before* any email goes out: if
+        # this push fails, nothing is sent, so a later deploy can't re-send.
+        # The ledger lives outside website/, so this push doesn't redeploy.
+        if: steps.cfg.outputs.enabled == 'true' && !inputs.dry_run
+        run: |
+          git diff --quiet -- scripts/newsletter/sent.txt && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add scripts/newsletter/sent.txt
+          git commit -m "chore(newsletter): record emailed posts"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            sleep $((i * 5))
+          done
+          echo "::error::Could not push the ledger; no emails were sent."
+          exit 1
+      - name: Send emails
+        if: steps.cfg.outputs.enabled == 'true' && !inputs.dry_run
+        env:
+          SENDY_API_KEY: ${{ secrets.SENDY_API_KEY }}
+          SENDY_BRAND_ID: ${{ vars.SENDY_BRAND_ID }}
+          NEWSLETTER_FROM_NAME: ${{ vars.NEWSLETTER_FROM_NAME }}
+          NEWSLETTER_FROM_EMAIL: ${{ vars.NEWSLETTER_FROM_EMAIL }}
+        run: $RUN send "$RUNNER_TEMP/to-send.txt"

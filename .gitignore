@@ -9,3 +9,4 @@ dist/
 website/public/
 website/resources/
 .hugo_build.lock
+scripts/newsletter/preview-email.html

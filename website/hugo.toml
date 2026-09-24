@@ -36,6 +36,16 @@ enableGitInfo = true
   # GitHub release notes (we don't archive per-version doc builds yet).
   version = "0.2.0"
 
+  # Newsletter (Sendy, self-hosted at marketing.happychases.com — same instance
+  # as kdpisda.in and jeenotes). OFF while sendyList is empty: the subscribe
+  # form isn't rendered and .github/workflows/newsletter.yml skips.
+  # sendyList = the `list` value from the Sendy list's *embed form* code — not the
+  # hosted-page ?f= token (different encryption; subscribe fails with it).
+  # newsletterFrom must be a verified sender for the Sendy brand (Amazon SES).
+  sendyUrl = "https://marketing.happychases.com"
+  sendyList = ""
+  newsletterFrom = ""
+
   [[params.versions]]
     name = "v0.2.0"
     url = "/"

@@ -27,5 +27,7 @@
     <span>{{ with $pager.Next }}<a href="{{ .URL }}">Older posts &rarr;</a>{{ end }}</span>
   </nav>
   {{ end }}
+
+  {{ partial "newsletter-form.html" . }}
 </div>
 {{ end }}

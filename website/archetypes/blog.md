@@ -16,6 +16,17 @@ toc: false
 # Optional 1200×630 social card. A file next to index.md in a page bundle
 # (e.g. "cover.png") or a site path (e.g. "/img/foo.png"); defaults to /og.png.
 # image: ""
+# The email sent to newsletter subscribers when this post goes live (see
+# "Newsletter" in website/README.md). Write it for the inbox, not a copy of the
+# post: title, date, greeting, "Read the post" button and unsubscribe footer are
+# added by the template. Only [links](https://...) and `inline code` render.
+newsletter:
+  subject: ""     # ~60 chars; not just the post title
+  preheader: ""   # one line of grey preview text after the subject
+  # body: 2-4 short plain-text paragraphs (what's new, why it matters to the
+  # reader, a tease of the key insight), separated by blank lines. Left empty,
+  # the email falls back to the title + description.
+  body: ""
 ---
 
 Lead with the problem the reader has, in one or two sentences.
