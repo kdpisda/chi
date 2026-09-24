@@ -46,6 +46,34 @@ enableGitInfo = true
   sendyList = "XoEV4oPICDowcTF8m532Xw"
   newsletterFrom = ""
 
+  # "Find chi elsewhere" icon row in the site-wide newsletter block
+  # (layouts/partials/newsletter-form.html). Order = display order; `icon` is one
+  # of: github, pypi, x, linkedin, youtube, instagram, rss, email.
+  [[params.social]]
+    name = "GitHub"
+    url = "https://github.com/kdpisda/chi"
+    icon = "github"
+  [[params.social]]
+    name = "PyPI"
+    url = "https://pypi.org/project/getchi/"
+    icon = "pypi"
+  [[params.social]]
+    name = "X"
+    url = "https://x.com/kdpisda"
+    icon = "x"
+  [[params.social]]
+    name = "LinkedIn"
+    url = "https://www.linkedin.com/in/kdpisda/"
+    icon = "linkedin"
+  [[params.social]]
+    name = "YouTube"
+    url = "https://www.youtube.com/@kdpisda"
+    icon = "youtube"
+  [[params.social]]
+    name = "RSS"
+    url = "/blog/index.xml"
+    icon = "rss"
+
   [[params.versions]]
     name = "v0.2.0"
     url = "/"

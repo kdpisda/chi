@@ -1,27 +1,42 @@
-{{- /* Sendy subscribe form. Renders only when params.sendyUrl + params.sendyList
-       are set; otherwise falls back to the blog RSS link. Posts to Sendy's
-       /subscribe (double opt-in; Sendy hosts the confirm/thanks pages). The same
-       list receives an email per new post via .github/workflows/newsletter.yml. */ -}}
+{{- /* Site-wide "stay in the loop" block (rendered from baseof.html): Sendy
+       subscribe form + "find chi elsewhere" icon links (params.social).
+       The form renders only when params.sendyUrl + params.sendyList are set;
+       otherwise an RSS link stands in. Posts to Sendy's /subscribe (double
+       opt-in; Sendy redirects to /newsletter/* status pages). The same list gets
+       one email per new post via .github/workflows/newsletter.yml. */ -}}
 {{- $blog := site.GetPage "/blog" -}}
-<section class="newsletter" aria-label="Get new posts by email">
-  <p class="section-label">newsletter</p>
-  <h2>Get new posts by email</h2>
-  <p class="sub">One email per post — guides, mechanisms, and honest comparisons. No spam; unsubscribe anytime.</p>
-  {{ if and site.Params.sendyUrl site.Params.sendyList }}
-  <form class="newsletter-form" action="{{ site.Params.sendyUrl }}/subscribe" method="post" accept-charset="utf-8">
-    <input type="hidden" name="list" value="{{ site.Params.sendyList }}">
-    <input type="hidden" name="subform" value="yes">
-    <div class="newsletter-hp" aria-hidden="true"><label>Leave this empty <input type="text" name="hp" tabindex="-1" autocomplete="off"></label></div>
-    <div class="newsletter-row">
-      <label class="visually-hidden" for="nl-email">Email address</label>
-      <span class="prompt" aria-hidden="true">$</span>
-      <input id="nl-email" type="email" name="email" required placeholder="you@example.com" autocomplete="email">
-      <button type="submit">subscribe</button>
+<section class="newsletter" aria-label="Stay in the loop">
+  <div class="newsletter-subscribe">
+    <h2>Stay in the loop</h2>
+    <p class="sub">New posts on chi and running agent fleets — guides, mechanisms, and honest comparisons. One email per post, no spam.</p>
+    {{ if and site.Params.sendyUrl site.Params.sendyList }}
+    <form class="newsletter-form" action="{{ site.Params.sendyUrl }}/subscribe" method="post" accept-charset="utf-8">
+      <input type="hidden" name="list" value="{{ site.Params.sendyList }}">
+      <input type="hidden" name="subform" value="yes">
+      <div class="newsletter-hp" aria-hidden="true"><label>Leave this empty <input type="text" name="hp" tabindex="-1" autocomplete="off"></label></div>
+      <div class="newsletter-row">
+        <label class="visually-hidden" for="nl-name">Name</label>
+        <input id="nl-name" type="text" name="name" placeholder="Your name" autocomplete="name">
+        <label class="visually-hidden" for="nl-email">Email address</label>
+        <input id="nl-email" type="email" name="email" required placeholder="you@example.com" autocomplete="email">
+        <button type="submit">Subscribe</button>
+      </div>
+      <label class="newsletter-consent"><input type="checkbox" name="gdpr" required> I agree to receive email updates about new posts.</label>
+      <p class="newsletter-legal">Run by HappyChases Media Works OPC Pvt Ltd via Sendy. See the <a href="{{ (site.GetPage "/legal/privacy").RelPermalink }}">privacy policy</a>.</p>
+    </form>
+    {{ else }}
+    {{ with $blog }}{{ with .OutputFormats.Get "rss" }}<p class="newsletter-rss"><a href="{{ .RelPermalink }}">Subscribe via RSS &rarr;</a></p>{{ end }}{{ end }}
+    {{ end }}
+  </div>
+  {{ with site.Params.social }}
+  <div class="newsletter-follow">
+    <p class="newsletter-follow__label">Find chi elsewhere</p>
+    <div class="social-links">
+      {{ range . }}
+      {{ $external := hasPrefix .url "http" }}
+      <a href="{{ if $external }}{{ .url }}{{ else }}{{ .url | relURL }}{{ end }}" aria-label="{{ .name }}" title="{{ .name }}"{{ if $external }} target="_blank" rel="noopener"{{ end }}>{{ partial "social-icon.html" .icon }}</a>
+      {{ end }}
     </div>
-    <label class="newsletter-consent"><input type="checkbox" name="gdpr" required> I agree to receive email updates about new posts.</label>
-    <p class="newsletter-legal">Run by HappyChases Media Works OPC Pvt Ltd via Sendy. See the <a href="{{ (site.GetPage "/legal/privacy").RelPermalink }}">privacy policy</a>.</p>
-  </form>
-  {{ else }}
-  {{ with $blog }}{{ with .OutputFormats.Get "rss" }}<p class="newsletter-rss"><a href="{{ .RelPermalink }}">Subscribe via RSS &rarr;</a></p>{{ end }}{{ end }}
+  </div>
   {{ end }}
 </section>

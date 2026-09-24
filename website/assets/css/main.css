@@ -763,62 +763,49 @@ pre code { background: none; border: none; padding: 0; font-size: inherit; color
 
 .more-posts { padding-top: 2rem; border-top: 1px solid var(--line); }
 
-/* ---------- newsletter (Sendy subscribe form) ---------- */
+/* ---------- newsletter: site-wide "stay in the loop" block ---------- */
 
+.global-cta { max-width: var(--max); margin: 0 auto; padding: 1rem 1.25rem 2.5rem; }
 .newsletter {
-  margin: 2.5rem 0 1.5rem;
+  display: grid;
+  gap: 1.5rem;
   padding: 1.75rem;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--bg-raise);
 }
-.newsletter h2, .prose .newsletter h2, .section .newsletter h2 {
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -0.005em;
-  border-top: none;
-  padding-top: 0;
-  margin: 0 0 0.4rem;
-}
-.newsletter .sub, .prose .newsletter .sub { color: var(--ink-dim); font-size: 0.95rem; margin: 0 0 1.1rem; max-width: 40rem; }
-.newsletter-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  max-width: 34rem;
-  padding: 0.35rem 0.35rem 0.35rem 0.9rem;
-  border: 1px solid var(--line-bright);
-  border-radius: 9px;
-  background: var(--bg);
-  font-family: var(--mono);
-}
-.newsletter-row:focus-within { border-color: var(--phosphor); }
-.newsletter-row .prompt { color: var(--phosphor); }
-.newsletter-row input[type="email"] {
-  flex: 1;
+.newsletter h2 { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.005em; margin: 0; }
+.newsletter .sub { color: var(--ink-dim); font-size: 0.9rem; margin: 0.4rem 0 0; max-width: 34rem; }
+.newsletter-form { margin-top: 1.1rem; }
+.newsletter-row { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.newsletter-row input {
+  flex: 1 1 14rem;
   min-width: 0;
-  background: none;
-  border: none;
-  outline: none;
-  color: var(--ink);
   font: inherit;
-  font-size: 0.9rem;
-  padding: 0.45rem 0;
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line-bright);
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  outline: none;
 }
 .newsletter-row input::placeholder { color: var(--ink-faint); }
+.newsletter-row input:focus { border-color: var(--phosphor); }
 .newsletter-row button {
-  font: inherit;
-  font-size: 0.8125rem;
+  flex: none;
+  font-family: var(--mono);
+  font-size: 0.875rem;
   font-weight: 700;
   color: #06130c;
   background: var(--phosphor);
   border: none;
-  border-radius: 6px;
-  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  padding: 0.65rem 1.4rem;
   cursor: pointer;
 }
-.newsletter-row button:hover { filter: brightness(1.08); }
-.newsletter-consent, .prose .newsletter-consent {
+.newsletter-row button:hover { background: #55e698; }
+.newsletter-consent {
   display: flex;
   gap: 0.5rem;
   align-items: center;
@@ -827,14 +814,43 @@ pre code { background: none; border: none; padding: 0; font-size: inherit; color
   color: var(--ink-dim);
 }
 .newsletter-consent input { accent-color: var(--phosphor); }
-.newsletter-rss { font-family: var(--mono); font-size: 0.875rem; }
+.newsletter-legal { margin: 0.5rem 0 0; font-size: 0.75rem; color: var(--ink-faint); }
+.newsletter-legal a { color: var(--ink-dim); text-decoration: underline; text-underline-offset: 2px; }
+.newsletter-rss { font-family: var(--mono); font-size: 0.875rem; margin-top: 1rem; }
 .newsletter-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 .visually-hidden {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-.global-cta { max-width: var(--max); margin: 0 auto; padding: 1rem 1.25rem 2.5rem; }
-.global-cta .newsletter { margin: 0; }
+
+.newsletter-follow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+.newsletter-follow__label {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.social-links { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.social-links a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid var(--line-bright);
+  border-radius: 8px;
+  color: var(--ink-dim);
+  transition: color 0.15s, border-color 0.15s;
+}
+.social-links a:hover { color: var(--phosphor); border-color: var(--phosphor); text-decoration: none; }
 
 /* ---------- legal ---------- */
 
@@ -857,8 +873,6 @@ pre code { background: none; border: none; padding: 0; font-size: inherit; color
 .legal .prose h2:first-of-type { margin-top: 2rem; }
 .prose .docs-index .card h3 { margin: 0 0 0.4rem; }
 .prose .docs-index .card p { margin: 0; color: var(--ink-dim); }
-.newsletter-legal, .prose .newsletter-legal { margin: 0.6rem 0 0; font-size: 0.75rem; color: var(--ink-faint); }
-.newsletter-legal a { color: var(--ink-dim); text-decoration: underline; text-underline-offset: 2px; }
 
 /* ---------- newsletter status pages (Sendy redirects) ---------- */
 
@@ -914,6 +928,7 @@ pre code { background: none; border: none; padding: 0; font-size: inherit; color
   .docs-nav a { border-left: none; border: 1px solid var(--line); border-radius: 6px; }
   .docs-index { grid-template-columns: 1fr; }
   .post-list, .post-grid { grid-template-columns: 1fr; }
+  .newsletter-row button { flex: 1 1 100%; }
   .post-card.lead { padding: 1.5rem; }
   .post-card.lead h2 { font-size: 1.3rem; }
   .post-header h1 { font-size: 1.8rem; }
