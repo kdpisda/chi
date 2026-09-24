@@ -1,0 +1,27 @@
+# Offline, zero-key demo of the HOLDOUT GATE. Like examples/offline.yaml this
+# needs no provider, no key and no network — the `scripted` adapter replays a
+# canned candidate and chi really evaluates it. Run it from the repo root:
+#
+#     chi run examples/holdout.yaml
+#
+# The replayed candidate is correct everywhere and genuinely faster on the
+# problem's benchmark — but only because it special-cases that benchmark's exact
+# 4000-element input. It wins the score, and the holdout catches it:
+#
+#     "champion_score": 0.09,     # a real ~99% win on bench.py
+#     ⚠ holdout overfit: claims +99.8% on the benchmark but realises only
+#       +0.4% held out (0% of the claim, floor 50%)
+#
+# Swap the script for examples/holdout_honest.json to watch a real
+# itertools.accumulate rewrite pass the same gate at ~100% of its claim.
+run_name: holdout-demo
+problem: problems/overfit_demo
+budgets:
+  total_usd: 0.0            # scripted playback spends nothing
+coders:
+  - id: replay
+    model: scripted         # not a real model — the adapter ignores it
+    adapter: scripted
+    script: examples/holdout_overfit.json
+policies:
+  max_iterations: 1

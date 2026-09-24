@@ -5,11 +5,6 @@ baseline is measured up front and every REAL slice gets meta-reviewed), then
 runs the Director loop via run_slice until stopped.
 """
 
-import json
-import math
-import shlex
-import subprocess
-import sys
 import threading
 from pathlib import Path
 from typing import Callable
@@ -20,9 +15,12 @@ from chi.director.loop import Director
 from chi.director.research import Researcher
 from chi.director.round import RoundRunner
 from chi.director.strategy import Strategist
+from chi.eval.holdout import build_holdout_gate
 from chi.eval.noise import NoiseGuard
 from chi.eval.popcorn import BenchResult, PopcornBackend
-from chi.orchestrator.loop import start_run
+from chi.eval.sample import sample_score
+from chi.orchestrator.loop import baseline_holdout, start_run
+from chi.store import events
 from chi.store.db import Store
 
 
@@ -34,28 +32,8 @@ def local_benchmark_fn(problem: ProblemConfig) -> Callable[[Path], BenchResult]:
 
     def bench(candidate: Path) -> BenchResult:
         candidate = Path(candidate)
-        cmd = problem.entrypoints.benchmark.format(
-            candidate=candidate.name, python=sys.executable)
-        try:
-            proc = subprocess.run(shlex.split(cmd), cwd=candidate.parent,
-                                  capture_output=True, text=True,
-                                  timeout=problem.timeout_seconds)
-        except subprocess.TimeoutExpired:
-            return BenchResult(False, None, "benchmark timed out")
-        if proc.returncode != 0:
-            out = ((proc.stdout or "") + " " + (proc.stderr or "")).strip()
-            return BenchResult(False, None, f"benchmark failed: {out[:300]}")
-        try:
-            score = float(json.loads(proc.stdout.strip().splitlines()[-1])["score"])
-        except (IndexError, KeyError, TypeError, ValueError):
-            return BenchResult(False, None,
-                               f"no score parsed from: {proc.stdout.strip()[:300]}")
-        # same rule as the eval runner: a frozen/negative/inf "runtime" is gaming
-        # or breakage, not speed — reject the measurement
-        if not math.isfinite(score) or score <= 0:
-            return BenchResult(False, None,
-                               f"invalid score {score!r}: must be finite and > 0")
-        return BenchResult(True, score, "ok")
+        return sample_score(problem.entrypoints.benchmark, candidate.parent,
+                            candidate.name, problem.timeout_seconds)
 
     return bench
 
@@ -79,6 +57,33 @@ def build_noise_guard(problem: ProblemConfig, direction: str) -> NoiseGuard | No
         return NoiseGuard(local_benchmark_fn(problem), n=3, direction=direction,
                           promote_margin_pct=problem.promote_margin_pct)
     return None
+
+
+def build_holdout_check(store, run_id: str, run_dir: Path,
+                        problem: ProblemConfig) -> Callable | None:
+    """The director's generalization check, or None when the problem has no holdout.
+
+    Closes over everything the verdict needs from the store — the run's benchmark
+    baseline and the held-out baseline measured on the untouched candidate — so
+    the Director itself stays a pure control loop.
+    """
+    gate = build_holdout_gate(problem, Path(run_dir) / "holdout")
+    if gate is None:
+        return None
+
+    def check(candidate: Path, champion_score: float | None):
+        rows = store.query(
+            "SELECT score_value FROM experiments WHERE run_id=? AND author='baseline'"
+            " ORDER BY ts LIMIT 1", (run_id,))
+        baseline_score = rows[0]["score_value"] if rows else None
+        verdict = gate.verify(candidate, baseline_holdout=baseline_holdout(store, run_id),
+                              baseline_score=baseline_score,
+                              champion_score=champion_score)
+        events.append_event(store, run_id, events.HOLDOUT, agent_id="holdout",
+                            payload={"phase": "director", **verdict.as_payload()})
+        return verdict
+
+    return check
 
 
 class DirectorHandle:
@@ -134,6 +139,8 @@ class DirectorHandle:
             self._director = Director(store, self.run_id, self.run_dir, runner, strategist,
                                       researcher, direction=direction, emit=self._emit,
                                       noise_guard=noise_guard,
+                                      holdout_check=build_holdout_check(
+                                          store, self.run_id, self.run_dir, problem),
                                       candidate_name=problem.candidate,
                                       per_coder_strategy=per_coder,
                                       target_score=self._target_score,

@@ -43,10 +43,20 @@ def test_three_agents_run_in_parallel_and_best_wins(tmp_path: Path) -> None:
     agents = {r["agent_id"] for r in store.query("SELECT agent_id FROM agents")}
     assert {"claude-A", "codex-B", "grok-C"} <= agents
 
-    # champion is the best across all three, and its strategy is recorded
+    # champion is the best across all three, and its strategy is recorded.
+    #
+    # Asserted as "an O(n) agent beat the O(n^2) one" rather than "grok-C won":
+    # NAIVE vs either O(n) candidate is a ~500x gap, so that ordering is solid,
+    # but BETTER and BEST are only 1.24x-1.72x apart on a ~0.1ms benchmark
+    # (measured), and the three coders coming through this test benchmark
+    # concurrently. Which of the two edges the other is CPython micro-timing
+    # under runner contention, not behaviour chi controls — pinning it made this
+    # test fail intermittently on CI while passing locally.
     champ = store.query("SELECT * FROM experiments WHERE correct=1 AND score_value IS NOT NULL"
                         " ORDER BY score_value ASC LIMIT 1")[0]
-    assert champ["author"] == "grok-C" and champ["strategy"] == "fused-tensorcore"
+    winners = {"codex-B": ("left-looking", BETTER), "grok-C": ("fused-tensorcore", BEST)}
+    assert champ["author"] in winners, "the O(n^2) candidate must not win"
+    assert champ["strategy"] == winners[champ["author"]][0]
     assert summary.champion_score == champ["score_value"]
 
     # each agent explored its own strategy — recorded on its experiments
@@ -54,9 +64,10 @@ def test_three_agents_run_in_parallel_and_best_wins(tmp_path: Path) -> None:
         "SELECT strategy FROM experiments WHERE author LIKE '%-%'")}
     assert {"blocked", "left-looking", "fused-tensorcore"} <= strategies
 
-    # the winning candidate is exported into the shared workdir for /champion --export
+    # the winning candidate — whichever of the two it is — is exported into the
+    # shared workdir for /champion --export
     exported = (summary.run_dir / "workdir" / "candidate.py").read_text()
-    assert "itertools.accumulate" in exported
+    assert exported == winners[champ["author"]][1]
 
 
 def test_dedup_shared_across_agents(tmp_path: Path) -> None:

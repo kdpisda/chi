@@ -336,3 +336,90 @@ def test_director_self_stops_at_cost_ceiling(tmp_path, monkeypatch):
     assert d.halted_reason is not None
     assert "budget" in d.halted_reason.lower() or "cost" in d.halted_reason.lower()
     assert d.cumulative_cost >= 5.0
+
+
+class _NoiseGuard:
+    """Confirms every apparent win — isolates the holdout's effect on self-stop."""
+
+    def verify(self, candidate, champion_score):
+        from chi.eval.noise import VerifyResult
+        return VerifyResult(True, champion_score, [champion_score], 1, "confirmed")
+
+
+def _holdout_run(tmp_path, monkeypatch, verdict, scores):
+    """Drive the director past a target with a holdout returning `verdict`."""
+    store = _seed_run(tmp_path)
+    import chi.director.loop as loopmod
+
+    it = iter(scores)
+
+    def moving_digest(store_, run_id_, round_index, prev_best, direction="minimize",
+                      noise_band_pct=8.0):
+        best = next(it, scores[-1])
+        return RoundDigest(round_index=round_index, best_score=best,
+                           champion_score=best, prev_best=prev_best)
+
+    monkeypatch.setattr(loopmod, "build_digest", moving_digest)
+    monkeypatch.setattr(loopmod, "classify_state",
+                        lambda *a, **k: DirectorState.IMPROVING)
+    stop = threading.Event()
+    checks = []
+
+    class _Runner:
+        def __init__(self): self.i = 0
+        def __call__(self, iterations):
+            self.i += 1
+            if self.i >= 4:  # backstop so a blocked target can't spin forever
+                stop.set()
+            return RoundResult(round_index=self.i - 1, new_experiments=[],
+                               best_score=None, benchmarks_run=1, cost_usd=0.0)
+
+    def holdout_check(candidate, champion_score):
+        checks.append(champion_score)
+        return verdict
+
+    d = loopmod.Director(store, "r1", tmp_path / "r", _Runner(), _FakeStrategist(),
+                         researcher=None, emit=lambda line: None,
+                         idle_sleep_seconds=0.0, noise_guard=_NoiseGuard(),
+                         holdout_check=holdout_check, target_score=500.0)
+    d.run(stop)
+    return d, checks, store
+
+
+def test_overfit_champion_cannot_satisfy_the_target(tmp_path, monkeypatch):
+    # the score crosses the target, but only on the benchmark it was tuned against.
+    # Handing that back as "goal reached" is exactly how an overfit result ships.
+    from chi.eval.holdout import OVERFIT, HoldoutVerdict
+
+    verdict = HoldoutVerdict(OVERFIT, claimed_gain_pct=50.0, holdout_gain_pct=1.0,
+                             generalization=0.02, benchmarks_run=3)
+    d, checks, store = _holdout_run(tmp_path, monkeypatch, verdict, [700.0, 640.0, 480.0])
+
+    assert d.halted_reason is None       # never claimed the goal
+    assert checks                         # the gate did run on the apparent win
+    assert d.last_holdout.verdict == OVERFIT
+    payloads = [json.loads(r["payload_json"])
+                for r in list_events(store, "r1", "DIRECTOR_ROUND")]
+    assert payloads[-1]["holdout"] == OVERFIT
+
+
+def test_generalizing_champion_satisfies_the_target(tmp_path, monkeypatch):
+    from chi.eval.holdout import GENERALIZES, HoldoutVerdict
+
+    verdict = HoldoutVerdict(GENERALIZES, claimed_gain_pct=50.0, holdout_gain_pct=48.0,
+                             generalization=0.96, benchmarks_run=3)
+    d, _, _ = _holdout_run(tmp_path, monkeypatch, verdict, [700.0, 640.0, 480.0])
+
+    assert d.halted_reason is not None
+    assert "target" in d.halted_reason.lower()
+
+
+def test_holdout_benchmarks_count_toward_the_visible_spend(tmp_path, monkeypatch):
+    from chi.eval.holdout import GENERALIZES, HoldoutVerdict
+
+    verdict = HoldoutVerdict(GENERALIZES, claimed_gain_pct=5.0, holdout_gain_pct=5.0,
+                             generalization=1.0, benchmarks_run=3)
+    d, _, _ = _holdout_run(tmp_path, monkeypatch, verdict, [700.0, 690.0, 680.0])
+
+    # 1 benchmark per round from the runner + 1 noise-guard + 3 holdout samples
+    assert d.cumulative_benchmarks >= 3 * (1 + 1 + 3)
