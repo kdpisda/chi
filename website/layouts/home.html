@@ -90,4 +90,16 @@ just type           free text steers the fleet` "text" }}
   </div>
 </section>
 
+{{ with site.GetPage "/blog" }}{{ with first 3 .RegularPages }}
+<section class="section" id="blog">
+  <p class="section-label">from the blog</p>
+  <h2>Notes from running agent fleets.</h2>
+  <p class="sub">How-tos, mechanisms, and honest comparisons — what chi does, and what it
+  doesn't yet. <a href="{{ (site.GetPage "/blog").RelPermalink }}">All posts &rarr;</a></p>
+  <div class="post-grid">
+    {{ range . }}{{ partial "post-card.html" (dict "page" .) }}{{ end }}
+  </div>
+</section>
+{{ end }}{{ end }}
+
 {{ end }}

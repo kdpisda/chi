@@ -1,7 +1,7 @@
 {{ define "main" }}
 <div class="docs-wrap">
   {{ partial "docs-nav.html" . }}
-  <article class="docs-content">
+  <article class="docs-content prose">
     <h1>{{ .Title }}</h1>
     {{ with .Description }}<p class="desc">{{ . }}</p>{{ end }}
     {{ .Content }}

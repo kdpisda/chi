@@ -1,0 +1,7 @@
+{{- /* Absolute URL of the page's social card: front matter `image` (a page
+       bundle resource or a site path), else the sitewide og.png. */ -}}
+{{- $img := "og.png" | absURL -}}
+{{- with .Params.image -}}
+  {{- with $.Resources.Get . -}}{{- $img = .Permalink -}}{{- else -}}{{- $img = absURL (strings.TrimPrefix "/" .) -}}{{- end -}}
+{{- end -}}
+{{- return $img -}}

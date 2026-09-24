@@ -1,0 +1,69 @@
+{{ define "main" }}
+{{ $author := .Params.author | default site.Params.author }}
+<div class="post-wrap{{ if .Params.toc }} has-toc{{ end }}">
+  <article class="post prose">
+    <nav class="post-crumbs" aria-label="Breadcrumb">
+      <a href="{{ .CurrentSection.RelPermalink }}">&larr; blog</a>
+    </nav>
+    <header class="post-header">
+      {{ partial "post-meta.html" . }}
+      <h1>{{ .Title }}</h1>
+      {{ with .Description }}<p class="desc">{{ . }}</p>{{ end }}
+      <p class="post-byline">
+        by {{ if eq $author site.Params.author }}<a href="{{ site.Params.author_url }}" target="_blank" rel="noopener">{{ $author }}</a>{{ else }}{{ $author }}{{ end }}
+        {{ if and (not .Lastmod.IsZero) (gt (sub .Lastmod.Unix .Date.Unix) 86400) }}
+        · updated <time datetime="{{ .Lastmod.Format "2006-01-02" }}">{{ .Lastmod.Format "Jan 2, 2006" }}</time>
+        {{ end }}
+      </p>
+    </header>
+
+    {{ .Content }}
+
+    <aside class="post-cta">
+      <p class="section-label">try it</p>
+      <h2>Run chi in ten seconds, no API key</h2>
+      <p>The offline demo replays a scripted fleet against a real evaluator — you watch
+      an O(n²) baseline lose to an O(n) champion, end to end, for $0.</p>
+{{ highlight `uv tool install getchi
+git clone https://github.com/kdpisda/chi && cd chi
+chi run examples/offline.yaml` "sh" }}
+      <p class="links">
+        <a href="{{ (site.GetPage "/docs/getting-started").RelPermalink }}">Getting started &rarr;</a>
+        <a href="{{ site.Params.github }}" target="_blank" rel="noopener">★ Star on GitHub</a>
+      </p>
+    </aside>
+
+    {{ $share := .Permalink | urlquery }}
+    {{ $title := .Title | urlquery }}
+    <p class="post-share">
+      share:
+      <a href="https://x.com/intent/post?text={{ $title }}&amp;url={{ $share }}" target="_blank" rel="noopener">X</a>
+      <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ $share }}" target="_blank" rel="noopener">LinkedIn</a>
+      <a href="https://news.ycombinator.com/submitlink?u={{ $share }}&amp;t={{ $title }}" target="_blank" rel="noopener">Hacker News</a>
+      <a href="https://www.reddit.com/submit?url={{ $share }}&amp;title={{ $title }}" target="_blank" rel="noopener">Reddit</a>
+    </p>
+
+    <nav class="docs-prevnext">
+      <span>{{ with .NextInSection }}<a href="{{ .RelPermalink }}">&larr; {{ .Title }}</a>{{ end }}</span>
+      <span>{{ with .PrevInSection }}<a href="{{ .RelPermalink }}">{{ .Title }} &rarr;</a>{{ end }}</span>
+    </nav>
+  </article>
+
+  {{ if .Params.toc }}
+  <aside class="post-toc" aria-label="On this page">
+    <p class="label">// on this page</p>
+    {{ .TableOfContents }}
+  </aside>
+  {{ end }}
+</div>
+
+{{ $more := first 3 (where .CurrentSection.RegularPages "Permalink" "ne" .Permalink) }}
+{{ with $more }}
+<section class="section more-posts">
+  <p class="section-label">keep reading</p>
+  <div class="post-grid">
+    {{ range . }}{{ partial "post-card.html" (dict "page" .) }}{{ end }}
+  </div>
+</section>
+{{ end }}
+{{ end }}

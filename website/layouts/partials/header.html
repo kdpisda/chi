@@ -3,7 +3,7 @@
     <a class="wordmark" href="{{ site.Home.RelPermalink }}"><span class="glyph">χ</span>chi</a>
     <nav class="site-nav">
       {{ range site.Menus.main }}
-        <a href="{{ .URL }}"{{ if hasPrefix .URL "http" }} target="_blank" rel="noopener"{{ end }}{{ if and (ne $.RelPermalink nil) (eq .URL $.RelPermalink) }} aria-current="true"{{ end }}>{{ .Name }}</a>
+        <a href="{{ .URL }}"{{ if hasPrefix .URL "http" }} target="_blank" rel="noopener"{{ end }}{{ if and (not (hasPrefix .URL "http")) (hasPrefix $.RelPermalink .URL) }} aria-current="true"{{ end }}>{{ .Name }}</a>
       {{ end }}
       {{ with site.Params.versions }}
       <details class="version-select">

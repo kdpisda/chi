@@ -1,0 +1,8 @@
+{{- /* A blog post teaser. Context: dict "page" <Page> "lead" <bool>. */ -}}
+{{- $p := .page -}}
+<article class="post-card{{ if .lead }} lead{{ end }}">
+  {{ partial "post-meta.html" $p }}
+  <h2><a href="{{ $p.RelPermalink }}">{{ $p.Title }}</a></h2>
+  <p>{{ $p.Description | default $p.Summary | plainify }}</p>
+  <a class="more" href="{{ $p.RelPermalink }}" aria-hidden="true" tabindex="-1">read &rarr;</a>
+</article>

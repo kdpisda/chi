@@ -1,0 +1,16 @@
+{{ if eq .Section "blog" }}
+{{ $blog := site.GetPage "/blog" }}
+{{ $isIndex := eq .Kind "section" }}
+<script type="application/ld+json">
+{ "@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [ { "@type": "ListItem", "position": 1, "name": "Home", "item": "{{ site.Home.Permalink }}" }, { "@type": "ListItem", "position": 2, "name": "Blog"{{ if not $isIndex }}, "item": "{{ $blog.Permalink }}"{{ end }} }{{ if not $isIndex }}, { "@type": "ListItem", "position": 3, "name": {{ .Title | jsonify }} }{{ end }} ] }
+</script>
+{{ if $isIndex }}
+<script type="application/ld+json">
+{ "@context": "https://schema.org", "@type": "Blog", "@id": "{{ .Permalink }}#blog", "name": {{ printf "%s · chi" .Title | jsonify }}, "description": {{ (.Description | default site.Params.description) | jsonify }}, "url": "{{ .Permalink }}", "inLanguage": "en-US", "isPartOf": { "@id": "{{ site.Home.Permalink }}#website" }, "publisher": { "@id": "{{ site.Home.Permalink }}#organization" }, "blogPost": [ {{ range $i, $p := first 20 .RegularPages }}{{ if $i }}, {{ end }}{ "@type": "BlogPosting", "headline": {{ $p.Title | jsonify }}, "url": "{{ $p.Permalink }}", "datePublished": "{{ $p.Date.Format "2006-01-02T15:04:05Z07:00" }}" }{{ end }} ] }
+</script>
+{{ else }}
+<script type="application/ld+json">
+{ "@context": "https://schema.org", "@type": "BlogPosting", "headline": {{ .Title | jsonify }}, "description": {{ (.Description | default .Summary | plainify) | jsonify }}, "url": "{{ .Permalink }}", "mainEntityOfPage": "{{ .Permalink }}", "image": "{{ partial "og-image.html" . }}", "inLanguage": "en-US", "wordCount": {{ .WordCount }}{{ with .Params.category }}, "articleSection": {{ . | jsonify }}{{ end }}{{ with .Params.tags }}, "keywords": {{ delimit . ", " | jsonify }}{{ end }}, "isPartOf": { "@id": "{{ $blog.Permalink }}#blog" }, "about": { "@id": "{{ site.Home.Permalink }}#software" }, "author": {{ if or (not .Params.author) (eq .Params.author site.Params.author) }}{ "@id": "{{ site.Home.Permalink }}#person-kd" }{{ else }}{ "@type": "Person", "name": {{ .Params.author | jsonify }} }{{ end }}, "publisher": { "@id": "{{ site.Home.Permalink }}#organization" }, "datePublished": "{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}"{{ if not .Lastmod.IsZero }}, "dateModified": "{{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" }}"{{ end }} }
+</script>
+{{ end }}
+{{ end }}

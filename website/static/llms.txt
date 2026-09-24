@@ -29,3 +29,10 @@ Then run `chi` for the terminal session, or `chi run <fleet.yaml>` headless.
 - Problems & evaluators: https://getchi.dev/docs/problems/ — how to define a problem pack
 - Security: https://getchi.dev/docs/security/ — threat model, sandbox tiers, submission gating
 - Changelog: https://getchi.dev/docs/changelog/ — what shipped in each release
+
+## Blog
+
+- Blog index: https://getchi.dev/blog/ — guides, mechanisms, and comparisons (RSS: https://getchi.dev/blog/index.xml)
+- What is chi?: https://getchi.dev/blog/what-is-chi-autoresearch-harness/
+- First loop, no API key: https://getchi.dev/blog/first-autoresearch-loop-no-api-key/
+- chi vs pi-autoresearch vs karpathy/autoresearch: https://getchi.dev/blog/chi-vs-pi-autoresearch-vs-karpathy-autoresearch/
