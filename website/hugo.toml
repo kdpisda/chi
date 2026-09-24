@@ -43,7 +43,7 @@ enableGitInfo = true
   # hosted-page ?f= token (different encryption; subscribe fails with it).
   # newsletterFrom must be a verified sender for the Sendy brand (Amazon SES).
   sendyUrl = "https://marketing.happychases.com"
-  sendyList = ""
+  sendyList = "XoEV4oPICDowcTF8m532Xw"
   newsletterFrom = ""
 
   [[params.versions]]

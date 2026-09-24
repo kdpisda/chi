@@ -72,6 +72,7 @@ jobs:
         if: steps.cfg.outputs.enabled == 'true' && !inputs.dry_run
         env:
           NEWSLETTER_MAX_POSTS: ${{ inputs.max_posts }}
+          NEWSLETTER_FROM_EMAIL: ${{ vars.NEWSLETTER_FROM_EMAIL }}   # checked before reserving
         run: $RUN reserve "$RUNNER_TEMP/to-send.txt"
       - name: Push ledger before sending
         # The ledger must be durable on main *before* any email goes out: if

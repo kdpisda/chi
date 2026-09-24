@@ -140,3 +140,20 @@ def test_repo_config_loads_and_ledger_covers_every_published_post():
     assert cfg["base_url"] == "https://getchi.dev"
     pending = newsletter.pending_posts(newsletter.load_posts(), newsletter.read_ledger())
     assert len(pending) <= 3
+
+
+def test_reserve_refuses_without_a_sender_and_leaves_the_ledger_alone(tmp_path, monkeypatch):
+    posts = tmp_path / "blog"
+    write(posts, "new/index.md", "title: New\nslug: new\ndate: 2026-09-22")
+    ledger = tmp_path / "sent.txt"
+    ledger.write_text("")
+    monkeypatch.setattr(newsletter, "POSTS", str(posts))
+    monkeypatch.setattr(newsletter, "LEDGER", str(ledger))
+    monkeypatch.setattr(newsletter, "load_config", lambda: {
+        "base_url": "https://getchi.dev", "sendy_url": "https://sendy.example",
+        "list_id": "L", "brand_id": "", "from_name": "chi", "from_email": ""})
+    monkeypatch.setattr(newsletter, "is_live", lambda url: True)
+    todo = tmp_path / "to-send.txt"
+    assert newsletter.main(["x", "reserve", str(todo)]) == 1
+    assert newsletter.read_ledger() == set()
+    assert not todo.exists()

@@ -313,6 +313,13 @@ def main(argv):
         print(f"\npreview written: {os.path.relpath(PREVIEW, REPO)} (dry run - nothing sent)")
         return 0
 
+    # A post reserved without a way to send it would be marked as emailed and
+    # silently skipped, so check the sender before touching the ledger.
+    if not is_configured(cfg) or not cfg["from_email"]:
+        print("::error::No sender address: set params.newsletterFrom in website/hugo.toml "
+              "or the NEWSLETTER_FROM_EMAIL repo variable. Nothing was reserved or sent.")
+        return 1
+
     # reserve: record live posts in the ledger *before* sending. The workflow
     # pushes the ledger, and only then runs `send`, so a failed push can never
     # lead to a re-send on the next deploy (at-most-once delivery).
