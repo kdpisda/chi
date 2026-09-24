@@ -1,0 +1,22 @@
+{{- /* Status pages Sendy redirects subscribers to (list settings → custom URLs).
+       Front matter: status (success|info|warning), command, result. */ -}}
+{{ define "main" }}
+{{ $status := .Params.status | default "info" }}
+<div class="nl-status-wrap">
+  <section class="nl-status nl-status--{{ $status }}" aria-labelledby="nl-status-title">
+    <p class="section-label">newsletter</p>
+    {{ with .Params.command }}
+    <div class="nl-status__term" aria-hidden="true">
+      <p><span class="t-prompt">$</span> {{ . }}</p>
+      {{ with $.Params.result }}<p class="nl-status__result">{{ . }}</p>{{ end }}
+    </div>
+    {{ end }}
+    <h1 id="nl-status-title">{{ .Title }}</h1>
+    <div class="nl-status__body prose">{{ .Content }}</div>
+    <p class="nl-status__actions">
+      <a class="btn primary" href="{{ (site.GetPage "/blog").RelPermalink }}">Read the blog &rarr;</a>
+      <a class="btn" href="{{ site.Home.RelPermalink }}">Back home</a>
+    </p>
+  </section>
+</div>
+{{ end }}

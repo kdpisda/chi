@@ -121,6 +121,21 @@ Sendy instance.
 Before turning it on, set the new Sendy list to **double opt-in**. The
 privacy policy and terms say subscribers confirm their address.
 
+### Sendy list settings: custom page URLs
+
+In Sendy, open the getchi.dev list's settings and point each page at the site.
+The pages live in `content/newsletter/` and use `layouts/newsletter/page.html`.
+They're `noindex` and left out of the sitemap.
+
+| Sendy field | URL |
+|---|---|
+| Subscribe success page | `https://getchi.dev/newsletter/subscribed/` |
+| Subscription confirmed page (double opt-in) | `https://getchi.dev/newsletter/confirmed/` |
+| Already subscribed page | `https://getchi.dev/newsletter/already-subscribed/` |
+| GDPR reconsent success page | `https://getchi.dev/newsletter/consent-updated/` |
+| GDPR consent not given page | `https://getchi.dev/newsletter/consent-required/` |
+| Unsubscribe confirmation page | `https://getchi.dev/newsletter/unsubscribed/` |
+
 ## Legal pages
 
 `content/legal/` has an overview, privacy, terms and cookies page, with
