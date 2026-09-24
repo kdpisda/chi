@@ -36,3 +36,7 @@ Angle ids are referenced from posts.jsonl. Add angles by hand at the bottom.
   noisy_bench pack prices executed Python line events, so it ranks an O(n)
   rewrite below the O(n^2) baseline and moves 300 points when two statements
   are joined onto one line. A fleet optimizes the metric, not the goal.
+
+- **holdout** — a benchmark the fleet optimizes against becomes the selection
+  pressure, so candidates overfit its exact input. chi re-scores the champion on
+  a held-out workload agents never see and flags overfit/generalizes (PR #2).
