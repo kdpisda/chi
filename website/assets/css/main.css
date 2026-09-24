@@ -16,7 +16,8 @@
   --blue: #6cb2e0;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  --max: 62rem;
+  --max: 76rem;          /* page container; text columns cap themselves (--measure) */
+  --measure: 48rem;      /* comfortable reading width for long-form text */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -191,7 +192,7 @@ pre code { background: none; border: none; padding: 0; font-size: inherit; color
   font-weight: 800;
   line-height: 1.12;
   letter-spacing: -0.02em;
-  max-width: 40rem;
+  max-width: 46rem;
 }
 .hero h1 em {
   font-style: normal;
@@ -450,6 +451,9 @@ pre code { background: none; border: none; padding: 0; font-size: inherit; color
   gap: 2.5rem;
   align-items: start;
 }
+/* grid items default to min-width:auto and grow to their widest <pre>;
+   let the code blocks scroll inside the column instead of widening the page */
+.quickstart .cols > div { min-width: 0; }
 .quickstart h3 {
   font-family: var(--mono);
   font-size: 0.875rem;
@@ -518,7 +522,7 @@ pre code { background: none; border: none; padding: 0; font-size: inherit; color
   background: var(--phosphor-dim);
 }
 
-.docs-content { min-width: 0; }
+.docs-content { min-width: 0; max-width: var(--measure); }
 
 .prose h1 {
   font-size: 2rem;
@@ -695,7 +699,8 @@ pre code { background: none; border: none; padding: 0; font-size: inherit; color
 .post-wrap.has-toc {
   max-width: var(--max);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 13rem;
+  grid-template-columns: minmax(0, var(--measure)) 13rem;
+  justify-content: space-between;
   gap: 3rem;
 }
 .post { min-width: 0; }
