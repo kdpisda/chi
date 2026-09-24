@@ -833,7 +833,8 @@ pre code { background: none; border: none; padding: 0; font-size: inherit; color
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-.section .newsletter { margin-top: 2.5rem; }
+.global-cta { max-width: var(--max); margin: 0 auto; padding: 1rem 1.25rem 2.5rem; }
+.global-cta .newsletter { margin: 0; }
 
 /* ---------- legal ---------- */
 

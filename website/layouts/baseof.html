@@ -40,6 +40,11 @@
   <main>
     {{ block "main" . }}{{ end }}
   </main>
+  {{- /* Site-wide newsletter CTA, above the footer on every page except the
+         Sendy status pages (/newsletter/*) and the 404. */}}
+  {{ if not (or (eq .Section "newsletter") (eq .Kind "404")) }}
+  <aside class="global-cta">{{ partial "newsletter-form.html" . }}</aside>
+  {{ end }}
   {{ partial "footer.html" . }}
 </body>
 </html>

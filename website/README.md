@@ -112,7 +112,7 @@ Sendy instance.
    hosted-page `?f=` token.
 2. In `website/hugo.toml` `[params]`, set `sendyList` to that ID and
    `newsletterFrom` to a sender address verified in SES for that brand. That
-   turns on the subscribe form (blog listing, every post, landing page) and the
+   turns on the subscribe form (site-wide, above the footer) and the
    workflow.
 3. Add the repo secret `SENDY_API_KEY`. Optional repo variables:
    `SENDY_BRAND_ID`, `NEWSLETTER_FROM_NAME` (default "chi (getchi.dev)") and
