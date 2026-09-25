@@ -62,7 +62,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/eval/noise.py, angles.md `noiseguard` (636/652/686µs), problems/noisy_bench, drafts/2026-09-16.md
 
 - id: overfit-benchmark-holdout
-  status: open
+  status: published 2026-09-25 /blog/coding-agent-overfits-benchmark/
   category: Case study
   funnel: TOFU
   query: "coding agent overfits benchmark"

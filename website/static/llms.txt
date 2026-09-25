@@ -36,6 +36,7 @@ Then run `chi` for the terminal session, or `chi run <fleet.yaml>` headless.
 - What is chi?: https://getchi.dev/blog/what-is-chi-autoresearch-harness/
 - First loop, no API key: https://getchi.dev/blog/first-autoresearch-loop-no-api-key/
 - chi vs pi-autoresearch vs karpathy/autoresearch: https://getchi.dev/blog/chi-vs-pi-autoresearch-vs-karpathy-autoresearch/
+- How to catch a coding agent that overfits its benchmark: https://getchi.dev/blog/coding-agent-overfits-benchmark/
 
 ## Legal
 
