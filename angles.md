@@ -40,3 +40,7 @@ Angle ids are referenced from posts.jsonl. Add angles by hand at the bottom.
 - **holdout** — a benchmark the fleet optimizes against becomes the selection
   pressure, so candidates overfit its exact input. chi re-scores the champion on
   a held-out workload agents never see and flags overfit/generalizes (PR #2).
+
+- **substrate** — installed is not working. `shutil.which` finds a vendor CLI,
+  not the account that rejects every model. A dogfood run was wasted on that
+  mid-run; `chi providers --probe` now sends each installed CLI one prompt first.
