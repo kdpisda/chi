@@ -44,3 +44,7 @@ Angle ids are referenced from posts.jsonl. Add angles by hand at the bottom.
 - **substrate** — installed is not working. `shutil.which` finds a vendor CLI,
   not the account that rejects every model. A dogfood run was wasted on that
   mid-run; `chi providers --probe` now sends each installed CLI one prompt first.
+
+- **correctness** — wrong code gets no score. Correctness seeds run before the
+  benchmark and stop at the first failure, so a fast wrong candidate is logged
+  correct=0 with a null score and can never become champion.
