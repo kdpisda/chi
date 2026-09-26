@@ -212,3 +212,11 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   query: "getchi chi cli install"
   angle: Short and useful. It's pronounced "kai", it installs as getchi, it runs as chi, and it isn't the Go router. Install paths, first command, where the docs are.
   evidence: README.md, website/static/llms.txt, angles.md `naming`, pyproject.toml
+
+- id: cli-substrate-probe
+  status: published 2026-09-26 /blog/agent-cli-installed-but-not-working/
+  category: Guide
+  funnel: MOFU
+  query: "AI agent CLI installed but not working"
+  angle: shutil.which only checks PATH, not the account or command template. Walk through chi's one-shot probe, the exact dogfood error it was built to catch, and the watchdog backstop for CLIs it doesn't cover.
+  evidence: chi/providers/substrate.py, tests/test_substrate.py, chi/cli.py:99-111, chi/orchestrator/watchdog.py, chi/config.py:31, website/content/docs/getting-started.md, website/content/docs/concepts.md, angles.md `substrate`, drafts/2026-09-25.md, chi providers --probe @ 2026-09-26 (live run)
