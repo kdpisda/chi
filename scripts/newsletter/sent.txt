@@ -1,5 +1,6 @@
 # Permalinks already emailed to newsletter subscribers (one per line).
 # Managed by scripts/newsletter/newsletter.py; remove a line to re-send.
+/blog/agent-cli-installed-but-not-working/
 /blog/chi-vs-pi-autoresearch-vs-karpathy-autoresearch/
 /blog/coding-agent-overfits-benchmark/
 /blog/first-autoresearch-loop-no-api-key/
