@@ -46,7 +46,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
 ## Backlog
 
 - id: stop-agent-looping
-  status: open
+  status: published 2026-09-27 /blog/stop-coding-agent-looping/
   category: Deep dive
   funnel: TOFU
   query: "how to stop an AI coding agent from looping"
