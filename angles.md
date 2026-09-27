@@ -48,3 +48,8 @@ Angle ids are referenced from posts.jsonl. Add angles by hand at the bottom.
 - **correctness** — wrong code gets no score. Correctness seeds run before the
   benchmark and stop at the first failure, so a fast wrong candidate is logged
   correct=0 with a null score and can never become champion.
+
+- **budget** — a cap only binds what charges it. In `chi run`, only LiteLLM-loop
+  calls go through `BudgetTracker`; a json_stream CLI coder's reported cost is
+  logged on the event and never recorded, so a $0.50 cap let a fake coder log
+  $2.00 and the summary reported $0.
