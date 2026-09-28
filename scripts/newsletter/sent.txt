@@ -6,3 +6,4 @@
 /blog/first-autoresearch-loop-no-api-key/
 /blog/stop-coding-agent-looping/
 /blog/what-is-chi-autoresearch-harness/
+/blog/write-an-evaluator-for-autoresearch/
