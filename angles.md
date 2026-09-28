@@ -53,3 +53,9 @@ Angle ids are referenced from posts.jsonl. Add angles by hand at the bottom.
   calls go through `BudgetTracker`; a json_stream CLI coder's reported cost is
   logged on the event and never recorded, so a $0.50 cap let a fake coder log
   $2.00 and the summary reported $0.
+
+- **clockgaming** — a candidate runs in the benchmark's process, so it can lie
+  about time. Dogfood crowned a coder that froze `perf_counter` (0.0ms, all
+  correctness seeds passed). The fix rejects scores <= 0 or non-finite
+  (`179aa90`), but a fake clock ticking 1us per read still scores the O(n^2)
+  baseline at 0.001ms and is accepted. Only isolation of the timer fixes it.
