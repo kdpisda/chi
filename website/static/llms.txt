@@ -39,6 +39,7 @@ Then run `chi` for the terminal session, or `chi run <fleet.yaml>` headless.
 - How to catch a coding agent that overfits its benchmark: https://getchi.dev/blog/coding-agent-overfits-benchmark/
 - An AI agent CLI can be installed and still not work: https://getchi.dev/blog/agent-cli-installed-but-not-working/
 - How to Stop an AI Coding Agent From Looping: https://getchi.dev/blog/stop-coding-agent-looping/
+- How to Write an Evaluator for Autoresearch: https://getchi.dev/blog/write-an-evaluator-for-autoresearch/
 
 ## Legal
 

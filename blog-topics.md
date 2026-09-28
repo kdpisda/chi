@@ -78,7 +78,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: problems/noisy_bench, angles.md `proxymetric`, drafts/2026-09-20.md
 
 - id: write-an-evaluator
-  status: open
+  status: published 2026-09-28 /blog/write-an-evaluator-for-autoresearch/
   category: Guide
   funnel: MOFU
   query: "how to write an evaluator for autoresearch"
