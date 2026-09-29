@@ -59,3 +59,9 @@ Angle ids are referenced from posts.jsonl. Add angles by hand at the bottom.
   correctness seeds passed). The fix rejects scores <= 0 or non-finite
   (`179aa90`), but a fake clock ticking 1us per read still scores the O(n^2)
   baseline at 0.001ms and is accepted. Only isolation of the timer fixes it.
+
+- **championexport** — the file on disk is not the winner. Coders overwrite and
+  revert `candidate.py`, so exporting the live file could ship a slower kernel
+  under the champion's score. chi archives every correct, scored candidate by
+  code hash at eval time and exports from that archive, re-verifying the hash
+  (`80a0725`).
