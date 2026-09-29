@@ -54,7 +54,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/orchestrator/watchdog.py, chi/config.py:31 (eval_recency_iters=10), angles.md `watchdog`, drafts/2026-09-13.md fact check
 
 - id: benchmark-noise-agents
-  status: open
+  status: published 2026-09-29 /blog/agent-benchmark-improvement-is-noise/
   category: Deep dive
   funnel: TOFU
   query: "LLM agent benchmark improvement is noise"
