@@ -142,7 +142,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/providers/budgets.py, website/content/docs/getting-started.md, angles.md `numbers` ($1.71, 812µs→636µs)
 
 - id: steering-mid-run
-  status: open
+  status: published 2026-09-30 /blog/steer-autonomous-coding-agent-mid-run/
   category: Guide
   funnel: MOFU
   query: "steer an autonomous coding agent while it runs"
