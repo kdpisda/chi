@@ -65,3 +65,8 @@ Angle ids are referenced from posts.jsonl. Add angles by hand at the bottom.
   under the champion's score. chi archives every correct, scored candidate by
   code hash at eval time and exports from that archive, re-verifying the hash
   (`80a0725`).
+
+- **steering** — redirect a running fleet without restarting it. `chi steer`
+  appends a `§op` block to the run's steering file; every coder re-reads it at
+  the top of each iteration and a hash change logs STEER_UPDATE. It cannot
+  reach an iteration in flight: up to `iteration_timeout_seconds` (600) late.
