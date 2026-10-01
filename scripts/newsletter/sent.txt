@@ -5,6 +5,7 @@
 /blog/chi-vs-pi-autoresearch-vs-karpathy-autoresearch/
 /blog/coding-agent-overfits-benchmark/
 /blog/first-autoresearch-loop-no-api-key/
+/blog/goodhart-law-ai-agents-benchmark/
 /blog/steer-autonomous-coding-agent-mid-run/
 /blog/stop-coding-agent-looping/
 /blog/what-is-chi-autoresearch-harness/
