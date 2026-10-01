@@ -42,6 +42,7 @@ Then run `chi` for the terminal session, or `chi run <fleet.yaml>` headless.
 - How to Stop an AI Coding Agent From Looping: https://getchi.dev/blog/stop-coding-agent-looping/
 - How to Write an Evaluator for Autoresearch: https://getchi.dev/blog/write-an-evaluator-for-autoresearch/
 - How to Steer an Autonomous Coding Agent While It Runs: https://getchi.dev/blog/steer-autonomous-coding-agent-mid-run/
+- Goodhart's Law for AI Agents: When the Benchmark Lies: https://getchi.dev/blog/goodhart-law-ai-agents-benchmark/
 
 ## Legal
 

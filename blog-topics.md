@@ -70,7 +70,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: docs/holdout.md, chi/eval/holdout.py, `chi run examples/holdout.yaml` ($0), examples/holdout_overfit.json and holdout_honest.json, drafts/2026-09-24.md
 
 - id: proxy-metric-bias
-  status: open
+  status: published 2026-10-01 /blog/goodhart-law-ai-agents-benchmark/
   category: Deep dive
   funnel: TOFU
   query: "Goodhart's law AI agents benchmark proxy metric"
