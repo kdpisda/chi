@@ -103,8 +103,9 @@ restarted. The director decides whether a round is improving, plateaued or stuck
 using explicit rules, and the LLM's view is only advisory. Ruled-out approach
 classes go into a ledger with evidence, and steering then blocks them outright.
 
-**Its budgets are real.** Dollar caps per run and per role are enforced by the
-harness, and the director stops itself at a target score or a cost ceiling you
+**Its budgets are real for API-routed coders.** Dollar caps per run and per role
+are enforced by the harness on the LiteLLM tool loop (a vendor CLI's reported
+cost is logged but not yet charged against them, [details](/blog/limit-llm-api-cost-coding-agents/)), and the director stops itself at a target score or a cost ceiling you
 give it in plain language.
 
 **Correctness is required.** Every candidate has to pass a correctness command

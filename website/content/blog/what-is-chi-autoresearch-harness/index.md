@@ -119,7 +119,7 @@ Different models do well on different parts of a problem, so a chi fleet mixes
 them on purpose. Coders run behind small adapters: vendor CLIs such as
 `claude`, `codex` and `grok` in headless or structured-stream mode, or any
 LiteLLM-routable model (Anthropic, OpenAI, DeepSeek, GLM, MiniMax, …) in a
-tool loop. Budgets are hard caps, per run and per role.
+tool loop. Dollar budgets are hard caps, per run and per role, for the LiteLLM tool loop; a vendor CLI's reported cost is logged but not yet charged against them ([details](/blog/limit-llm-api-cost-coding-agents/)).
 
 ```yaml
 run_name: toy

@@ -43,6 +43,7 @@ Then run `chi` for the terminal session, or `chi run <fleet.yaml>` headless.
 - How to Write an Evaluator for Autoresearch: https://getchi.dev/blog/write-an-evaluator-for-autoresearch/
 - How to Steer an Autonomous Coding Agent While It Runs: https://getchi.dev/blog/steer-autonomous-coding-agent-mid-run/
 - Goodhart's Law for AI Agents: When the Benchmark Lies: https://getchi.dev/blog/goodhart-law-ai-agents-benchmark/
+- How to Limit LLM API Cost for Coding Agents (and Where Caps Leak): https://getchi.dev/blog/limit-llm-api-cost-coding-agents/
 
 ## Legal
 

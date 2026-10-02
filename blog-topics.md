@@ -134,7 +134,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: website/content/docs/security.md, chi/agents/sandbox.py, chi/eval/submission.py, angles.md `sandbox`, drafts/2026-09-23.md
 
 - id: budgets-hard-caps
-  status: open
+  status: published 2026-10-02 /blog/limit-llm-api-cost-coding-agents/
   category: Guide
   funnel: MOFU
   query: "limit LLM API cost for agents"
@@ -220,3 +220,11 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   query: "AI agent CLI installed but not working"
   angle: shutil.which only checks PATH, not the account or command template. Walk through chi's one-shot probe, the exact dogfood error it was built to catch, and the watchdog backstop for CLIs it doesn't cover.
   evidence: chi/providers/substrate.py, tests/test_substrate.py, chi/cli.py:99-111, chi/orchestrator/watchdog.py, chi/config.py:31, website/content/docs/getting-started.md, website/content/docs/concepts.md, angles.md `substrate`, drafts/2026-09-25.md, chi providers --probe @ 2026-09-26 (live run)
+
+- id: director-cost-ceiling-accounting
+  status: open
+  category: Deep dive
+  funnel: MOFU
+  query: "agent loop cost ceiling stops early"
+  angle: The director sums the whole run's event costs each round and adds that to its own counter (chi/director/round.py:62-64, loop.py:92). Verify with a multi-round run whether the ceiling double-counts, then say what a user should set.
+  evidence: chi/director/round.py, chi/director/loop.py, tests/test_director_loop.py:337, a multi-round director run with a scripted adapter ($0)
