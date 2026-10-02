@@ -6,6 +6,7 @@
 /blog/coding-agent-overfits-benchmark/
 /blog/first-autoresearch-loop-no-api-key/
 /blog/goodhart-law-ai-agents-benchmark/
+/blog/limit-llm-api-cost-coding-agents/
 /blog/steer-autonomous-coding-agent-mid-run/
 /blog/stop-coding-agent-looping/
 /blog/what-is-chi-autoresearch-harness/
