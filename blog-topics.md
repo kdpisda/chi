@@ -198,7 +198,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: docs/autoresearch-gap-analysis.md, website/content/docs/changelog.md
 
 - id: v0-2-0-release
-  status: open
+  status: published 2026-10-03 /blog/getchi-0-2-0-release-notes/
   category: Release
   funnel: BOFU
   query: "getchi 0.2.0"
