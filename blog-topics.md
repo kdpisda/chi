@@ -86,7 +86,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: website/content/docs/problems.md, problems/optimize_function/{problem.yaml,check.py,bench.py}
 
 - id: negative-results-ledger
-  status: open
+  status: published 2026-10-04 /blog/multi-agent-system-repeats-failed-approaches/
   category: Deep dive
   funnel: MOFU
   query: "multi-agent system repeats failed approaches"

@@ -73,8 +73,9 @@ chi's answer to context rot.
 ### A negative-results ledger
 
 A ruled-out approach class is recorded with its evidence: the failure mode, the
-seed, the size of the error. The ledger feeds a hard "do not retry" block in the
-fleet's steering, so dead ends stay dead. `chi ledger --negative` shows you
+seed, the size of the error. The ledger feeds a "do not retry" block in the
+fleet's steering text, so agents that read it skip the dead ends. It is advice in
+the prompt, not a code-level block. `chi ledger --negative` shows you
 which paths are closed and why.
 
 ### A deterministic watchdog

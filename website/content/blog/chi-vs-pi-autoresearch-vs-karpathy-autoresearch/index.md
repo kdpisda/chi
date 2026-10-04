@@ -47,7 +47,7 @@ project's README and source as of **September 2026**.
 | Protected evaluator | `prepare.py` is off-limits by instruction | — | holdout workload never enters an agent workdir; optional Docker eval sandbox |
 | Noise handling | — | MAD confidence score (advisory) | NoiseGuard re-benchmarks wins (median-of-N) before they count |
 | Overfitting check | — | — | **holdout gate**: re-scores the champion on an unseen workload |
-| Dead-end memory | results log + agent context | `.auto/prompt.md` notes | negative-results ledger, hard-blocked in steering |
+| Dead-end memory | results log + agent context | `.auto/prompt.md` notes | negative-results ledger, "do not retry" in steering text |
 | Stall detection | — | re-prompts an idle agent after context compaction | deterministic watchdog: eval recency + repeated diff hashes |
 | Autonomy | runs until you stop it | runs until stopped or `maxIterations` | director: rounds, rule-based classification, research when stuck |
 | Spend control | — | `maxIterations`, provider key limits | hard USD caps per run and per role, plus a director cost ceiling |
@@ -101,7 +101,8 @@ it catch a cheat, offline, in
 iterations with no new eval, or the same diff hash repeated, and the agent is
 restarted. The director decides whether a round is improving, plateaued or stuck
 using explicit rules, and the LLM's view is only advisory. Ruled-out approach
-classes go into a ledger with evidence, and steering then blocks them outright.
+classes go into a ledger with evidence, and steering then tells the agents not to
+retry them (advice in the prompt, not a code-level block).
 
 **Its budgets are real for API-routed coders.** Dollar caps per run and per role
 are enforced by the harness on the LiteLLM tool loop (a vendor CLI's reported
