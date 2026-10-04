@@ -8,6 +8,7 @@
 /blog/getchi-0-2-0-release-notes/
 /blog/goodhart-law-ai-agents-benchmark/
 /blog/limit-llm-api-cost-coding-agents/
+/blog/multi-agent-system-repeats-failed-approaches/
 /blog/steer-autonomous-coding-agent-mid-run/
 /blog/stop-coding-agent-looping/
 /blog/what-is-chi-autoresearch-harness/
