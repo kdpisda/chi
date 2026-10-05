@@ -11,5 +11,6 @@
 /blog/multi-agent-system-repeats-failed-approaches/
 /blog/steer-autonomous-coding-agent-mid-run/
 /blog/stop-coding-agent-looping/
+/blog/test-agent-harness-without-api-key/
 /blog/what-is-chi-autoresearch-harness/
 /blog/write-an-evaluator-for-autoresearch/
