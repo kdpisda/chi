@@ -182,7 +182,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: docs/autoresearch-gap-analysis.md, the existing comparison post, pi-autoresearch README (fetch and date it)
 
 - id: offline-demo-internals
-  status: open
+  status: published 2026-10-05 /blog/test-agent-harness-without-api-key/
   category: Guide
   funnel: BOFU
   query: "test an agent harness without an API key"
