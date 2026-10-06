@@ -2,6 +2,7 @@
 # Managed by scripts/newsletter/newsletter.py; remove a line to re-send.
 /blog/agent-benchmark-improvement-is-noise/
 /blog/agent-cli-installed-but-not-working/
+/blog/agent-loop-cost-ceiling-stops-early/
 /blog/chi-vs-pi-autoresearch-vs-karpathy-autoresearch/
 /blog/coding-agent-overfits-benchmark/
 /blog/first-autoresearch-loop-no-api-key/
