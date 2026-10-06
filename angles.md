@@ -70,3 +70,4 @@ Angle ids are referenced from posts.jsonl. Add angles by hand at the bottom.
   appends a `§op` block to the run's steering file; every coder re-reads it at
   the top of each iteration and a hash change logs STEER_UPDATE. It cannot
   reach an iteration in flight: up to `iteration_timeout_seconds` (600) late.
+- **costceiling** (2026-10-06) — the director's cost ceiling double-counts: RoundRunner returns the run's cumulative event-log spend, the Director adds it to its own total and logs that total back into the same events table. A $25 ceiling stops at $2.40 real spend in the $0.40/iteration repro. Distinct from `budget` (CLI-coder cost never charged).
