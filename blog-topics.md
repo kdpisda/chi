@@ -222,7 +222,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/providers/substrate.py, tests/test_substrate.py, chi/cli.py:99-111, chi/orchestrator/watchdog.py, chi/config.py:31, website/content/docs/getting-started.md, website/content/docs/concepts.md, angles.md `substrate`, drafts/2026-09-25.md, chi providers --probe @ 2026-09-26 (live run)
 
 - id: director-cost-ceiling-accounting
-  status: open
+  status: published 2026-10-06 /blog/agent-loop-cost-ceiling-stops-early/
   category: Deep dive
   funnel: MOFU
   query: "agent loop cost ceiling stops early"
