@@ -166,7 +166,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: docs/superpowers/specs/2026-07-25-chi-v1-design.md, docs/product-spec-v1.md (pain points), angles.md `postmortem`
 
 - id: autoresearch-explained
-  status: open
+  status: published 2026-10-07 /blog/what-is-autoresearch-ai-agents/
   category: Guide
   funnel: TOFU
   query: "what is autoresearch"

@@ -48,6 +48,7 @@ Then run `chi` for the terminal session, or `chi run <fleet.yaml>` headless.
 - getchi 0.2.0: What Changed for Agent Loops Since 0.1.0: https://getchi.dev/blog/getchi-0-2-0-release-notes/
 - Test an Agent Harness Without an API Key: What's Real: https://getchi.dev/blog/test-agent-harness-without-api-key/
 - Why Your Agent Loop's Cost Ceiling Stops Early (a Real Bug): https://getchi.dev/blog/agent-loop-cost-ceiling-stops-early/
+- What Is Autoresearch? The AI Agent Loop, Where It Breaks: https://getchi.dev/blog/what-is-autoresearch-ai-agents/
 
 ## Legal
 
