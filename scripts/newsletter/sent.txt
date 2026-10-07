@@ -13,5 +13,6 @@
 /blog/steer-autonomous-coding-agent-mid-run/
 /blog/stop-coding-agent-looping/
 /blog/test-agent-harness-without-api-key/
+/blog/what-is-autoresearch-ai-agents/
 /blog/what-is-chi-autoresearch-harness/
 /blog/write-an-evaluator-for-autoresearch/
