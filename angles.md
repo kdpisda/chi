@@ -71,3 +71,4 @@ Angle ids are referenced from posts.jsonl. Add angles by hand at the bottom.
   the top of each iteration and a hash change logs STEER_UPDATE. It cannot
   reach an iteration in flight: up to `iteration_timeout_seconds` (600) late.
 - **costceiling** (2026-10-06) — the director's cost ceiling double-counts: RoundRunner returns the run's cumulative event-log spend, the Director adds it to its own total and logs that total back into the same events table. A $25 ceiling stops at $2.40 real spend in the $0.40/iteration repro. Distinct from `budget` (CLI-coder cost never charged).
+- **samecode** (2026-10-07) — what counts as "the same candidate". chi's code hash normalizes CRLF, trailing whitespace and trailing blank lines, so a reformatted copy hits the experiments cache and is never re-benchmarked; a comment-only edit is a new hash and pays a full eval. Distinct from `blackboard` (same hash across runs).
