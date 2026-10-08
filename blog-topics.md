@@ -94,7 +94,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/store/ledger.py, website/content/docs/concepts.md (ledger), angles.md `ledger`, drafts/2026-09-17.md
 
 - id: blackboard-vs-agent-chat
-  status: open
+  status: published 2026-10-08 /blog/multi-agent-shared-memory-vs-message-passing/
   category: Deep dive
   funnel: MOFU
   query: "multi-agent coordination shared memory vs message passing"
@@ -228,3 +228,11 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   query: "agent loop cost ceiling stops early"
   angle: The director sums the whole run's event costs each round and adds that to its own counter (chi/director/round.py:62-64, loop.py:92). Verify with a multi-round run whether the ceiling double-counts, then say what a user should set.
   evidence: chi/director/round.py, chi/director/loop.py, tests/test_director_loop.py:337, a multi-round director run with a scripted adapter ($0)
+
+- id: dedup-race-fix
+  status: open
+  category: Release
+  funnel: MOFU
+  query: "sqlite unique constraint failed experiments dedup race agents"
+  angle: Once the check-then-insert race in record_experiment (chi/store/ledger.py:29-31) is fixed on main, a short Release/Deep-dive post with before/after counts over the same 10-run repro (scratchpad: two coders, identical script).
+  evidence: drafts/blog run 2026-10-08 (2 of 10 runs failed one agent), fix commit, rerun of the repro
