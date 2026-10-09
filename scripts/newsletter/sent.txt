@@ -8,6 +8,7 @@
 /blog/first-autoresearch-loop-no-api-key/
 /blog/getchi-0-2-0-release-notes/
 /blog/goodhart-law-ai-agents-benchmark/
+/blog/install-getchi-chi-cli/
 /blog/limit-llm-api-cost-coding-agents/
 /blog/multi-agent-shared-memory-vs-message-passing/
 /blog/multi-agent-system-repeats-failed-approaches/
