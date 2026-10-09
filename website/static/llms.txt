@@ -37,6 +37,7 @@ Then run `chi` for the terminal session, or `chi run <fleet.yaml>` headless.
 - First loop, no API key: https://getchi.dev/blog/first-autoresearch-loop-no-api-key/
 - chi vs pi-autoresearch vs karpathy/autoresearch: https://getchi.dev/blog/chi-vs-pi-autoresearch-vs-karpathy-autoresearch/
 - How to catch a coding agent that overfits its benchmark: https://getchi.dev/blog/coding-agent-overfits-benchmark/
+- How to Install getchi and Run the chi CLI (First-Run Trap): https://getchi.dev/blog/install-getchi-chi-cli/
 - Is Your LLM Agent's Benchmark Improvement Just Noise?: https://getchi.dev/blog/agent-benchmark-improvement-is-noise/
 - An AI agent CLI can be installed and still not work: https://getchi.dev/blog/agent-cli-installed-but-not-working/
 - How to Stop an AI Coding Agent From Looping: https://getchi.dev/blog/stop-coding-agent-looping/

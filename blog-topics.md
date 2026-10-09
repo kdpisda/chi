@@ -206,7 +206,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: website/content/docs/changelog.md, git log v0.1.0..v0.2.0
 
 - id: naming-chi
-  status: open
+  status: published 2026-10-09 /blog/install-getchi-chi-cli/
   category: Guide
   funnel: BOFU
   query: "getchi chi cli install"
