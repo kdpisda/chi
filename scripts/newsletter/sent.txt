@@ -5,6 +5,7 @@
 /blog/agent-loop-cost-ceiling-stops-early/
 /blog/chi-vs-pi-autoresearch-vs-karpathy-autoresearch/
 /blog/coding-agent-overfits-benchmark/
+/blog/detect-agent-loop-plateau-rules/
 /blog/first-autoresearch-loop-no-api-key/
 /blog/getchi-0-2-0-release-notes/
 /blog/goodhart-law-ai-agents-benchmark/
