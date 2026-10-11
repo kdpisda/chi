@@ -51,6 +51,7 @@ Then run `chi` for the terminal session, or `chi run <fleet.yaml>` headless.
 - Why Your Agent Loop's Cost Ceiling Stops Early (a Real Bug): https://getchi.dev/blog/agent-loop-cost-ceiling-stops-early/
 - What Is Autoresearch? The AI Agent Loop, Where It Breaks: https://getchi.dev/blog/what-is-autoresearch-ai-agents/
 - Multi-Agent Coordination: Shared Memory vs Message Passing: https://getchi.dev/blog/multi-agent-shared-memory-vs-message-passing/
+- Detect When an Agent Loop Has Plateaued, Without an LLM: https://getchi.dev/blog/detect-agent-loop-plateau-rules/
 
 ## Legal
 

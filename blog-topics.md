@@ -102,7 +102,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/store/db.py, chi/eval/hashing.py, angles.md `blackboard`, drafts/2026-09-18.md
 
 - id: rule-based-stuck-detection
-  status: open
+  status: published 2026-10-11 /blog/detect-agent-loop-plateau-rules/
   category: Deep dive
   funnel: MOFU
   query: "detect when an agent loop has plateaued"
