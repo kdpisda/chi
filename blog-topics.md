@@ -126,7 +126,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/agents/{cli_subprocess.py,litellm_loop.py,registry.py}, chi/providers/catalog.py, examples/fleet.yaml, angles.md `heterogeneous`
 
 - id: sandbox-no-credentials
-  status: open
+  status: published 2026-10-14 /blog/sandbox-ai-coding-agents-safely/
   category: Deep dive
   funnel: MOFU
   query: "sandbox AI coding agents safely"
