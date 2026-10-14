@@ -13,6 +13,7 @@
 /blog/limit-llm-api-cost-coding-agents/
 /blog/multi-agent-shared-memory-vs-message-passing/
 /blog/multi-agent-system-repeats-failed-approaches/
+/blog/sandbox-ai-coding-agents-safely/
 /blog/steer-autonomous-coding-agent-mid-run/
 /blog/stop-coding-agent-looping/
 /blog/test-agent-harness-without-api-key/
