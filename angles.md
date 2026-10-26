@@ -89,3 +89,6 @@ Angle ids are referenced from posts.jsonl. Add angles by hand at the bottom.
 - **operatorguards** (2026-10-23, drafted, not yet posted) — the TUI operator's two guards from commit 0107797. `fetch_url` resolves the host with getaddrinfo and refuses private/loopback/link-local/reserved/multicast addresses (169.254.169.254, 127.1, 2130706433, [::ffff:127.0.0.1] all refused live), and never follows redirects. `explore_path` refuses secrets by file name only: `credentials` refused, but id_ecdsa, .npmrc, .pypirc, .env.local, service-account.json are read and returned to the model. Distinct from `sandbox`/`sandboxtiers` (coder containers, not the operator).
 
 - brainprompts: until commit 22308c9 the director's Researcher/Strategist prompts were hardcoded for a CUDA Cholesky kernel on a B200 (cuSOLVER, µs units) regardless of problem; now templated from the problem spec. Used 2026-10-25.
+- **heartbeat** — agents heartbeat from a background thread, but nothing
+  outside tests reads `last_heartbeat_at`. When the thread died on a
+  cross-thread sqlite error (fixed b1e234e), the run carried on unaware.
