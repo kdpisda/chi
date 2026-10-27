@@ -92,3 +92,4 @@ Angle ids are referenced from posts.jsonl. Add angles by hand at the bottom.
 - **heartbeat** — agents heartbeat from a background thread, but nothing
   outside tests reads `last_heartbeat_at`. When the thread died on a
   cross-thread sqlite error (fixed b1e234e), the run carried on unaware.
+- **autosubmitseed** (2026-10-27) — the auto-submit regression guard has no floor unless you give it one. `AutoSubmitter._improves` returns True when there is no last submission, and `chi run` seeds it with `problem.current_best` (default None), not the baseline score it already measured. Fake-backend replay, margin 0.5%: unseeded, 999 / 990 / 18 all submitted; seeded at 18.27, 999 held. Distinct from `submitbeforegate` (timing vs the holdout gate).
