@@ -118,7 +118,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: docs/director.md, chi/director/loop.py, website/content/docs/changelog.md v0.2.0 (self-stop)
 
 - id: heterogeneous-fleet
-  status: open
+  status: published 2026-10-29 /blog/use-multiple-llms-together-for-coding/
   category: Deep dive
   funnel: MOFU
   query: "use multiple LLMs together for coding"

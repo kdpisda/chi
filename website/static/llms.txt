@@ -53,6 +53,7 @@ Then run `chi` for the terminal session, or `chi run <fleet.yaml>` headless.
 - Multi-Agent Coordination: Shared Memory vs Message Passing: https://getchi.dev/blog/multi-agent-shared-memory-vs-message-passing/
 - Detect When an Agent Loop Has Plateaued, Without an LLM: https://getchi.dev/blog/detect-agent-loop-plateau-rules/
 - How to Sandbox AI Coding Agents Safely: Two Docker Tiers: https://getchi.dev/blog/sandbox-ai-coding-agents-safely/
+- Use Multiple LLMs Together for Coding: One Mixed Agent Fleet: https://getchi.dev/blog/use-multiple-llms-together-for-coding/
 
 ## Legal
 
