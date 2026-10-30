@@ -236,3 +236,11 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   query: "sqlite unique constraint failed experiments dedup race agents"
   angle: Once the check-then-insert race in record_experiment (chi/store/ledger.py:29-31) is fixed on main, a short Release/Deep-dive post with before/after counts over the same 10-run repro (scratchpad: two coders, identical script).
   evidence: drafts/blog run 2026-10-08 (2 of 10 runs failed one agent), fix commit, rerun of the repro
+
+- id: correctness-gate-exit-code
+  status: published 2026-10-30 /blog/agent-passes-correctness-check-exit-code/
+  category: Case study
+  funnel: TOFU
+  query: "coding agent pass correctness check exit code"
+  angle: A candidate that exits 0 before the comparison passes chi's gate. Repro, cause, and a child-process checker pattern.
+  evidence: chi/eval/runner.py returncode test, problems/optimize_function/check.py, repro 2026-10-30, drafts/2026-10-29.md
