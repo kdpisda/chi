@@ -3,6 +3,7 @@
 /blog/agent-benchmark-improvement-is-noise/
 /blog/agent-cli-installed-but-not-working/
 /blog/agent-loop-cost-ceiling-stops-early/
+/blog/agent-passes-correctness-check-exit-code/
 /blog/chi-vs-pi-autoresearch-vs-karpathy-autoresearch/
 /blog/coding-agent-overfits-benchmark/
 /blog/detect-agent-loop-plateau-rules/
