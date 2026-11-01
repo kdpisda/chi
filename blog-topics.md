@@ -244,3 +244,27 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   query: "coding agent pass correctness check exit code"
   angle: A candidate that exits 0 before the comparison passes chi's gate. Repro, cause, and a child-process checker pattern.
   evidence: chi/eval/runner.py returncode test, problems/optimize_function/check.py, repro 2026-10-30, drafts/2026-10-29.md
+
+- id: autoresearch-on-test-suite
+  status: open
+  category: Guide
+  funnel: TOFU
+  query: "speed up slow test suite with an AI coding agent"
+  angle: A test-suite runtime is a clean score (seconds, lower is better) with a built-in correctness gate (tests pass). How to write that evaluator and where it goes wrong (flaky tests, cached runs).
+  evidence: docs on evaluators, problems/optimize_function/check.py pattern, run a $0 offline pack to show the evaluator output. Must differ from /blog/write-an-evaluator-for-autoresearch/ by targeting the test-suite reader.
+
+- id: read-the-run-store
+  status: open
+  category: Guide
+  funnel: BOFU
+  query: "inspect coding agent run history chi status ledger"
+  angle: After a run, what chi status, chi ledger and the SQLite store tell you (champion, rejected candidates, reasons). Must go beyond /blog/test-agent-harness-without-api-key/.
+  evidence: chi/store/, chi/cli.py, run examples/offline.yaml and quote the output
+
+- id: resume-agent-run-after-crash
+  status: open
+  category: Guide
+  funnel: MOFU
+  query: "resume autonomous coding agent run after crash"
+  angle: What state survives a killed run (store, ledger, champion) and how resume picks up. Verify in code and with a $0 kill-and-resume test before writing.
+  evidence: docs/director.md, chi/director/loop.py, chi/store/ — needs a local kill/resume repro
