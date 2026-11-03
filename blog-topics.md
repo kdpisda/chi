@@ -246,7 +246,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/eval/runner.py returncode test, problems/optimize_function/check.py, repro 2026-10-30, drafts/2026-10-29.md
 
 - id: autoresearch-on-test-suite
-  status: open
+  status: published 2026-11-03 /blog/speed-up-slow-test-suite-ai-coding-agent/
   category: Guide
   funnel: TOFU
   query: "speed up slow test suite with an AI coding agent"
