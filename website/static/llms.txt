@@ -33,6 +33,7 @@ Then run `chi` for the terminal session, or `chi run <fleet.yaml>` headless.
 ## Blog
 
 - Blog index: https://getchi.dev/blog/ — guides, mechanisms, and comparisons (RSS: https://getchi.dev/blog/index.xml)
+- Inspect Coding Agent Run History: What chi's Store Records: https://getchi.dev/blog/inspect-coding-agent-run-history/
 - What is chi?: https://getchi.dev/blog/what-is-chi-autoresearch-harness/
 - First loop, no API key: https://getchi.dev/blog/first-autoresearch-loop-no-api-key/
 - chi vs pi-autoresearch vs karpathy/autoresearch: https://getchi.dev/blog/chi-vs-pi-autoresearch-vs-karpathy-autoresearch/

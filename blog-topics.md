@@ -254,7 +254,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: docs on evaluators, problems/optimize_function/check.py pattern, run a $0 offline pack to show the evaluator output. Must differ from /blog/write-an-evaluator-for-autoresearch/ by targeting the test-suite reader.
 
 - id: read-the-run-store
-  status: open
+  status: published 2026-11-04 /blog/inspect-coding-agent-run-history/
   category: Guide
   funnel: BOFU
   query: "inspect coding agent run history chi status ledger"
