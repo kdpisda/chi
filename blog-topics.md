@@ -268,3 +268,11 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   query: "resume autonomous coding agent run after crash"
   angle: What state survives a killed run (store, ledger, champion) and how resume picks up. Verify in code and with a $0 kill-and-resume test before writing.
   evidence: docs/director.md, chi/director/loop.py, chi/store/ — needs a local kill/resume repro
+
+- id: lucky-sample-target-stop
+  status: published 2026-11-05 /blog/agent-loop-stops-lucky-benchmark-score/
+  category: Deep dive
+  funnel: TOFU
+  query: "agent stops at target score lucky benchmark sample"
+  angle: The director's target stop reads the raw ledger champion, not the NoiseGuard verdict. Repro and workarounds.
+  evidence: chi/director/loop.py:72-80,102-115,176, chi/director/review.py:16-17, replay 2026-11-05
