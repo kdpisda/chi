@@ -262,13 +262,14 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/store/, chi/cli.py, run examples/offline.yaml and quote the output
 
 - id: resume-agent-run-after-crash
-  status: open
+  status: published 2026-11-11 /blog/resume-coding-agent-run-after-crash/
   category: Guide
   funnel: MOFU
   query: "resume autonomous coding agent run after crash"
   angle: What state survives a killed run (store, ledger, champion) and how resume picks up. Verify in code and with a $0 kill-and-resume test before writing.
   evidence: docs/director.md, chi/director/loop.py, chi/store/ — needs a local kill/resume repro
   note: 2026-11-06 premise check. /resume reattaches and replays only (chi/session/engine.py:641). It does not restart a killed run. Reframe as "what a killed run leaves in the store" or drop.
+  done: 2026-11-11 reframed per the 11-06 note. Post says plainly there is no in-place resume; shows a SIGKILL/SIGINT kill repro and restart-from-champion via chi champion --export.
 
 - id: lucky-sample-target-stop
   status: published 2026-11-05 /blog/agent-loop-stops-lucky-benchmark-score/
@@ -277,3 +278,11 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   query: "agent stops at target score lucky benchmark sample"
   angle: The director's target stop reads the raw ledger champion, not the NoiseGuard verdict. Repro and workarounds.
   evidence: chi/director/loop.py:72-80,102-115,176, chi/director/review.py:16-17, replay 2026-11-05
+
+- id: kill-and-restart-fleet
+  status: open
+  category: Case study
+  funnel: MOFU
+  query: "multi agent fleet crash recovery sqlite"
+  angle: Follow-up to the crash post. Kill a two-coder scripted fleet mid-run and check whether the shared store and champions/ archive stay consistent (dedup, leases, partial rows).
+  evidence: chi/orchestrator/loop.py _launch_fleet, chi/store/tasks.py expire_stale_leases (not called on the run path), a $0 two-coder scripted kill repro
