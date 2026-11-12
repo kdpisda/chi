@@ -150,7 +150,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/orchestrator/steering.py, website/content/docs/concepts.md (steering), README.md session commands
 
 - id: mechanism-not-wired
-  status: open
+  status: published 2026-11-12 /blog/agent-harness-bug-postmortem-wiring/
   category: Case study
   funnel: TOFU
   query: "agent harness bug postmortem"
