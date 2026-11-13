@@ -110,7 +110,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/director/review.py, docs/director.md, angles.md `classify`, drafts/2026-09-15.md
 
 - id: autonomous-director-goal
-  status: open
+  status: published 2026-11-13 /blog/run-coding-agent-unattended-overnight/
   category: Guide
   funnel: MOFU
   query: "run a coding agent unattended overnight with a budget"
@@ -286,3 +286,19 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   query: "multi agent fleet crash recovery sqlite"
   angle: Follow-up to the crash post. Kill a two-coder scripted fleet mid-run and check whether the shared store and champions/ archive stay consistent (dedup, leases, partial rows).
   evidence: chi/orchestrator/loop.py _launch_fleet, chi/store/tasks.py expire_stale_leases (not called on the run path), a $0 two-coder scripted kill repro
+
+- id: director-saturation-stop
+  status: open
+  category: Deep dive
+  funnel: TOFU
+  query: "agent loop keeps running after metric stops improving"
+  angle: A per-agent watchdog stops a coder; nothing stops the loop above it when the score goes flat. What a saturation-aware stop needs (window, noise band, a loud halt like the dead-eval rule), shown against chi's director, where it is still open gap #6.
+  evidence: chi/director/loop.py:89-194 (no flat-metric stop), chi/director/review.py classify_state, docs/autoresearch-gap-analysis.md gap 6, $0 director run 2026-11-13 (13 rounds, 12 stuck, 10 WATCHDOG_KILL, stopped only by request_stop). Best after a fix lands on main, else frame as design + open gap.
+
+- id: director-without-brain
+  status: open
+  category: Guide
+  funnel: MOFU
+  query: "autonomous coding agent loop without llm planner"
+  angle: What chi's director still does with no brain (rule-based state, dead-class blocks, near-miss promotion) and what only the brain adds (research on stuck, a new strategy for one coder). How operator_cli wires it, and the sorted(strategies)[0] reassignment quirk.
+  evidence: chi/director/strategy.py:207-250, chi/director/research.py:34-46, chi/session/engine.py:519-532, drafts/2026-11-03.md (strategypick replay), a $0 director run with a stub brain
