@@ -18,6 +18,7 @@
 /blog/multi-agent-shared-memory-vs-message-passing/
 /blog/multi-agent-system-repeats-failed-approaches/
 /blog/resume-coding-agent-run-after-crash/
+/blog/run-coding-agent-unattended-overnight/
 /blog/sandbox-ai-coding-agents-safely/
 /blog/steer-autonomous-coding-agent-mid-run/
 /blog/stop-coding-agent-looping/
