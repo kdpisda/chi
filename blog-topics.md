@@ -158,7 +158,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: angles.md `wiring`, drafts/2026-09-19.md, problems/noisy_bench, git log for the fix
 
 - id: postmortem-hand-run-fleet
-  status: open
+  status: published 2026-11-15 /blog/lessons-running-multi-agent-llm-fleet/
   category: Case study
   funnel: TOFU
   query: "lessons from running a multi-agent LLM fleet"
