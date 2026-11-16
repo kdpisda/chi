@@ -296,9 +296,18 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/director/loop.py:89-194 (no flat-metric stop), chi/director/review.py classify_state, docs/autoresearch-gap-analysis.md gap 6, $0 director run 2026-11-13 (13 rounds, 12 stuck, 10 WATCHDOG_KILL, stopped only by request_stop). Best after a fix lands on main, else frame as design + open gap.
 
 - id: director-without-brain
-  status: open
+  status: published 2026-11-16 /blog/coding-agent-loop-without-llm-planner/
   category: Guide
   funnel: MOFU
   query: "autonomous coding agent loop without llm planner"
   angle: What chi's director still does with no brain (rule-based state, dead-class blocks, near-miss promotion) and what only the brain adds (research on stuck, a new strategy for one coder). How operator_cli wires it, and the sorted(strategies)[0] reassignment quirk.
   evidence: chi/director/strategy.py:207-250, chi/director/research.py:34-46, chi/session/engine.py:519-532, drafts/2026-11-03.md (strategypick replay), a $0 director run with a stub brain
+  done: 2026-11-16 also found a failing brain CLI's stderr becomes the New direction label, and an exception in Strategist.plan (strategy.py:65, unwrapped) ends the director with handle.error never shown; near-miss block never fires (mark_near_miss only called in tests).
+
+- id: director-brain-failure-fix
+  status: open
+  category: Release
+  funnel: BOFU
+  query: "llm planner call fails agent loop silently"
+  angle: Once main wraps the strategist brain call, surfaces DirectorHandle.error in /director, and treats a nonzero CLI exit as no answer, a short before/after post with the same fake-CLI repro.
+  evidence: chi/director/strategy.py:65, chi/session/operator.py:482-483, chi/session/director_runner.py:150-152, chi/session/engine.py director_status; fix commit; rerun of the 2026-11-16 fake-claude and raising-brain repros (scratch scripts drove SessionEngine.start_director with CHI_CONFIG_DIR + a fake claude on PATH)
