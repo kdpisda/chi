@@ -7,6 +7,7 @@
 /blog/agent-loop-stops-lucky-benchmark-score/
 /blog/agent-passes-correctness-check-exit-code/
 /blog/chi-vs-pi-autoresearch-vs-karpathy-autoresearch/
+/blog/coding-agent-edits-its-own-benchmark/
 /blog/coding-agent-loop-without-llm-planner/
 /blog/coding-agent-overfits-benchmark/
 /blog/detect-agent-loop-plateau-rules/
