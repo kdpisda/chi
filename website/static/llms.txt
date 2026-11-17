@@ -33,6 +33,7 @@ Then run `chi` for the terminal session, or `chi run <fleet.yaml>` headless.
 ## Blog
 
 - Blog index: https://getchi.dev/blog/ — guides, mechanisms, and comparisons (RSS: https://getchi.dev/blog/index.xml)
+- Can a Coding Agent Edit Its Own Benchmark? I Tested It: https://getchi.dev/blog/coding-agent-edits-its-own-benchmark/
 - Coding Agent Loop Without an LLM Planner: What You Lose: https://getchi.dev/blog/coding-agent-loop-without-llm-planner/
 - Lessons From Running a Multi-Agent LLM Fleet by Hand: https://getchi.dev/blog/lessons-running-multi-agent-llm-fleet/
 - Run a Coding Agent Unattended Overnight: What Stops It: https://getchi.dev/blog/run-coding-agent-unattended-overnight/

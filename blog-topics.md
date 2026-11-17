@@ -311,3 +311,20 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   query: "llm planner call fails agent loop silently"
   angle: Once main wraps the strategist brain call, surfaces DirectorHandle.error in /director, and treats a nonzero CLI exit as no answer, a short before/after post with the same fake-CLI repro.
   evidence: chi/director/strategy.py:65, chi/session/operator.py:482-483, chi/session/director_runner.py:150-152, chi/session/engine.py director_status; fix commit; rerun of the 2026-11-16 fake-claude and raising-brain repros (scratch scripts drove SessionEngine.start_director with CHI_CONFIG_DIR + a fake claude on PATH)
+
+- id: agent-edits-own-benchmark
+  status: published 2026-11-17 /blog/coding-agent-edits-its-own-benchmark/
+  category: Case study
+  funnel: TOFU
+  query: "coding agent edits its own benchmark"
+  angle: The scorer lives in the agent's writable workdir. A candidate that rewrites bench.py on import becomes champion, and one that also rewrites holdout_bench.py gets a "generalizes" holdout verdict, because the holdout runs the candidate inside chi's private holdout dir.
+  evidence: chi/orchestrator/loop.py:334-335,404, chi/eval/runner.py:34,137, chi/cli.py:282, chi/eval/holdout.py:178-184, chi/eval/sample.py:26, chi/agents/{cli_subprocess.py:25,litellm_loop.py:49,156-172}, $0 scripted repros 2026-11-17
+  added: 2026-11-17 by the blog routine (not in backlog before; every other open topic failed rotation, evidence or cannibalization)
+
+- id: evaluator-tamper-fix
+  status: open
+  category: Release
+  funnel: BOFU
+  query: "protect evaluator from coding agent tampering"
+  angle: Once main scores from a read-only pack copy outside every workdir, re-copies holdout files per sample, hashes scoring files at run start, and stops chi eval rereading problem.yaml from the workdir, a before/after post rerunning the 2026-11-17 tamper repros.
+  evidence: fix commit; rerun of the three scripted tamper candidates (bench.py only, bench.py + holdout_bench.py, problem.yaml correctness edit via chi eval)
