@@ -18,6 +18,7 @@
 /blog/install-getchi-chi-cli/
 /blog/lessons-running-multi-agent-llm-fleet/
 /blog/limit-llm-api-cost-coding-agents/
+/blog/multi-agent-fleet-crash-recovery/
 /blog/multi-agent-shared-memory-vs-message-passing/
 /blog/multi-agent-system-repeats-failed-approaches/
 /blog/resume-coding-agent-run-after-crash/
