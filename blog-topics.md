@@ -280,7 +280,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/director/loop.py:72-80,102-115,176, chi/director/review.py:16-17, replay 2026-11-05
 
 - id: kill-and-restart-fleet
-  status: open
+  status: published 2026-11-21 /blog/multi-agent-fleet-crash-recovery/
   category: Case study
   funnel: MOFU
   query: "multi agent fleet crash recovery sqlite"
@@ -328,3 +328,19 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   query: "protect evaluator from coding agent tampering"
   angle: Once main scores from a read-only pack copy outside every workdir, re-copies holdout files per sample, hashes scoring files at run start, and stops chi eval rereading problem.yaml from the workdir, a before/after post rerunning the 2026-11-17 tamper repros.
   evidence: fix commit; rerun of the three scripted tamper candidates (bench.py only, bench.py + holdout_bench.py, problem.yaml correctness edit via chi eval)
+
+- id: killed-run-sweep-fix
+  status: open
+  category: Release
+  funnel: BOFU
+  query: "agent run stuck in running status after crash"
+  angle: Once main marks killed runs (or sweeps them on /resume or chi status) and calls expire_stale_leases, a short before/after post rerunning the 2026-11-21 fleet kill harness (28 kills; status running and tasks claimed in all of them today).
+  evidence: chi/orchestrator/loop.py:447 (only place ended_at is set), chi/store/tasks.py:75 expire_stale_leases (no caller on the run path), fix commit, rerun of the scratch kill harness (two scripted coders, random SIGKILL/SIGINT, checks integrity, rows=events=mirror=archives, tasks, run status)
+
+- id: plain-run-champion-noise
+  status: open
+  category: Deep dive
+  funnel: MOFU
+  query: "best score from agent loop is just benchmark noise"
+  angle: chi run picks its champion as the single best median in the ledger (ledger.champion, ORDER BY score_value LIMIT 1); the NoiseGuard re-measure lives in the director. In the 2026-11-21 fleet kills, 6 of 17 "champions" were still-quadratic variants 0.5-3.2 ms under a baseline that itself ranged 27.7-45.9 ms. Show when plain chi run vs the director protects you. Check overlap with /blog/agent-benchmark-improvement-is-noise/ first and take the plain-run-vs-director angle only.
+  evidence: chi/store/ledger.py champion(), chi/director NoiseGuard code, a $0 offline run with repeated baselines
