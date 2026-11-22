@@ -288,7 +288,7 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/orchestrator/loop.py _launch_fleet, chi/store/tasks.py expire_stale_leases (not called on the run path), a $0 two-coder scripted kill repro
 
 - id: director-saturation-stop
-  status: open
+  status: published 2026-11-22 /blog/agent-loop-stop-when-metric-stops-improving/
   category: Deep dive
   funnel: TOFU
   query: "agent loop keeps running after metric stops improving"
@@ -344,3 +344,12 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   query: "best score from agent loop is just benchmark noise"
   angle: chi run picks its champion as the single best median in the ledger (ledger.champion, ORDER BY score_value LIMIT 1); the NoiseGuard re-measure lives in the director. In the 2026-11-21 fleet kills, 6 of 17 "champions" were still-quadratic variants 0.5-3.2 ms under a baseline that itself ranged 27.7-45.9 ms. Show when plain chi run vs the director protects you. Check overlap with /blog/agent-benchmark-improvement-is-noise/ first and take the plain-run-vs-director angle only.
   evidence: chi/store/ledger.py champion(), chi/director NoiseGuard code, a $0 offline run with repeated baselines
+
+- id: director-raw-baseline-after-confirm
+  status: open
+  category: Deep dive
+  funnel: MOFU
+  query: "noise guard baseline lucky score agent loop"
+  angle: After NoiseGuard confirms a win, chi's director sets prev_best to the raw ledger best (chi/director/loop.py:155-157), not the confirmed median. In the 2026-11-22 stop-rule simulation that variant stopped early more often than no confirmation at all. Measure the effect on classify_state labels in a $0 director run on noisy_bench before writing; frame as a fix if one lands.
+  evidence: chi/director/loop.py:102-110,155-157, chi/eval/noise.py, chi/session/director_runner.py:27-57, 2026-11-22 sim (confirm vs confirm_raw), a $0 director run on problems/noisy_bench
+  added: 2026-11-22 by the blog routine
