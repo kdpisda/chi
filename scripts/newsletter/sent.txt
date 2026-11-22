@@ -4,6 +4,7 @@
 /blog/agent-cli-installed-but-not-working/
 /blog/agent-harness-bug-postmortem-wiring/
 /blog/agent-loop-cost-ceiling-stops-early/
+/blog/agent-loop-stop-when-metric-stops-improving/
 /blog/agent-loop-stops-lucky-benchmark-score/
 /blog/agent-passes-correctness-check-exit-code/
 /blog/chi-vs-pi-autoresearch-vs-karpathy-autoresearch/
