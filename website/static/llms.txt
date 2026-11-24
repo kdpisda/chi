@@ -33,6 +33,7 @@ Then run `chi` for the terminal session, or `chi run <fleet.yaml>` headless.
 ## Blog
 
 - Blog index: https://getchi.dev/blog/ — guides, mechanisms, and comparisons (RSS: https://getchi.dev/blog/index.xml)
+- Verify a Coding Agent's Speedup Is Real Before You Ship It: https://getchi.dev/blog/verify-coding-agent-speedup-is-real/
 - Agent Loop Keeps Running After the Metric Stops Improving: https://getchi.dev/blog/agent-loop-stop-when-metric-stops-improving/
 - Multi-Agent Fleet Crash Recovery: I Killed chi 28 Times: https://getchi.dev/blog/multi-agent-fleet-crash-recovery/
 - Speed Up a Slow Test Suite With an AI Coding Agent, Safely: https://getchi.dev/blog/speed-up-slow-test-suite-ai-agent/

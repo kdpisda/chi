@@ -338,12 +338,13 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   evidence: chi/orchestrator/loop.py:447 (only place ended_at is set), chi/store/tasks.py:75 expire_stale_leases (no caller on the run path), fix commit, rerun of the scratch kill harness (two scripted coders, random SIGKILL/SIGINT, checks integrity, rows=events=mirror=archives, tasks, run status)
 
 - id: plain-run-champion-noise
-  status: open
+  status: published 2026-11-24 /blog/verify-coding-agent-speedup-is-real/
   category: Deep dive
   funnel: MOFU
   query: "best score from agent loop is just benchmark noise"
   angle: chi run picks its champion as the single best median in the ledger (ledger.champion, ORDER BY score_value LIMIT 1); the NoiseGuard re-measure lives in the director. In the 2026-11-21 fleet kills, 6 of 17 "champions" were still-quadratic variants 0.5-3.2 ms under a baseline that itself ranged 27.7-45.9 ms. Show when plain chi run vs the director protects you. Check overlap with /blog/agent-benchmark-improvement-is-noise/ first and take the plain-run-vs-director angle only.
   evidence: chi/store/ledger.py champion(), chi/director NoiseGuard code, a $0 offline run with repeated baselines
+  done: 2026-11-24 published under query "verify a coding agent's speedup is real" (narrower than the original query, to stay clear of /blog/agent-benchmark-improvement-is-noise/). Scripted identical and ~3.9%-slower variants on optimize_function; 24 of 30 plain runs exported a fake champion.
 
 - id: director-raw-baseline-after-confirm
   status: open
