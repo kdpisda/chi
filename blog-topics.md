@@ -354,3 +354,21 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   angle: After NoiseGuard confirms a win, chi's director sets prev_best to the raw ledger best (chi/director/loop.py:155-157), not the confirmed median. In the 2026-11-22 stop-rule simulation that variant stopped early more often than no confirmation at all. Measure the effect on classify_state labels in a $0 director run on noisy_bench before writing; frame as a fix if one lands.
   evidence: chi/director/loop.py:102-110,155-157, chi/eval/noise.py, chi/session/director_runner.py:27-57, 2026-11-22 sim (confirm vs confirm_raw), a $0 director run on problems/noisy_bench
   added: 2026-11-22 by the blog routine
+
+- id: flaky-benchmark-timeout
+  status: published 2026-11-25 /blog/flaky-benchmark-timeout-agent-loop/
+  category: Case study
+  funnel: TOFU
+  query: "flaky benchmark timeout in an agent loop"
+  angle: A benchmark timeout records the candidate correct with a null score, and evaluate() serves that row from the code-hash cache forever, so a one-off host stall removes the run's best candidate. A correctness timeout caches a correct candidate as incorrect. Workarounds: post-run query, retry inside the entrypoint, timeout headroom.
+  evidence: chi/eval/runner.py:70-78,95-100,122-128, chi/eval/hashing.py, chi/store/schema.sql (no detail column), angles.md staleresult, drafts/2026-10-08.md, $0 scripted repros 2026-11-25 (flaky_host wrapper)
+  added: 2026-11-25 by the blog routine (yesterday was Deep dive/MOFU; every open topic failed rotation, waited on an unlanded fix, or cannibalized chi-vs-pi)
+
+- id: stale-result-fix
+  status: open
+  category: Release
+  funnel: BOFU
+  query: "agent loop retries failed benchmark"
+  angle: Once main stops serving a cache hit whose score is null (or retries benchmark/correctness timeouts) and stores the eval failure reason, a short before/after post rerunning the 2026-11-25 flaky_host repro (stall on call 7: champion = baseline, 7 bench calls; correctness stall: correct 0, seeds [11]).
+  evidence: chi/eval/runner.py:70-78,95-100,122-128, fix commit, rerun of the flaky_host stall repro (scratch pack copy of optimize_function, timeout_seconds 10, scripted adapter resubmitting the accumulate candidate)
+  added: 2026-11-25 by the blog routine
