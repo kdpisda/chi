@@ -13,6 +13,7 @@
 /blog/coding-agent-overfits-benchmark/
 /blog/detect-agent-loop-plateau-rules/
 /blog/first-autoresearch-loop-no-api-key/
+/blog/flaky-benchmark-timeout-agent-loop/
 /blog/getchi-0-2-0-release-notes/
 /blog/goodhart-law-ai-agents-benchmark/
 /blog/inspect-coding-agent-run-history/
