@@ -347,13 +347,14 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   done: 2026-11-24 published under query "verify a coding agent's speedup is real" (narrower than the original query, to stay clear of /blog/agent-benchmark-improvement-is-noise/). Scripted identical and ~3.9%-slower variants on optimize_function; 24 of 30 plain runs exported a fake champion.
 
 - id: director-raw-baseline-after-confirm
-  status: open
+  status: published 2026-11-26 /blog/noisy-benchmark-hides-real-improvements/
   category: Deep dive
   funnel: MOFU
   query: "noise guard baseline lucky score agent loop"
   angle: After NoiseGuard confirms a win, chi's director sets prev_best to the raw ledger best (chi/director/loop.py:155-157), not the confirmed median. In the 2026-11-22 stop-rule simulation that variant stopped early more often than no confirmation at all. Measure the effect on classify_state labels in a $0 director run on noisy_bench before writing; frame as a fix if one lands.
   evidence: chi/director/loop.py:102-110,155-157, chi/eval/noise.py, chi/session/director_runner.py:27-57, 2026-11-22 sim (confirm vs confirm_raw), a $0 director run on problems/noisy_bench
   added: 2026-11-22 by the blog routine
+  done: 2026-11-26 published under query "noisy benchmark hides real improvements". Hypothesis mostly refuted in a live director run: median-baseline patch moved improving labels 127 -> 131 of 220; score.repeats 5 -> 148; 10% steps -> 177. Reframed around false plateaued/stuck labels on real progress.
 
 - id: flaky-benchmark-timeout
   status: published 2026-11-25 /blog/flaky-benchmark-timeout-agent-loop/

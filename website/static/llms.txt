@@ -33,6 +33,7 @@ Then run `chi` for the terminal session, or `chi run <fleet.yaml>` headless.
 ## Blog
 
 - Blog index: https://getchi.dev/blog/ — guides, mechanisms, and comparisons (RSS: https://getchi.dev/blog/index.xml)
+- A Noisy Benchmark Hides Real Improvements From Your Agent Loop: https://getchi.dev/blog/noisy-benchmark-hides-real-improvements/
 - A Flaky Benchmark Timeout Cost My Agent Loop Its Best Candidate: https://getchi.dev/blog/flaky-benchmark-timeout-agent-loop/
 - Verify a Coding Agent's Speedup Is Real Before You Ship It: https://getchi.dev/blog/verify-coding-agent-speedup-is-real/
 - Agent Loop Keeps Running After the Metric Stops Improving: https://getchi.dev/blog/agent-loop-stop-when-metric-stops-improving/
