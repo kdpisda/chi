@@ -373,3 +373,21 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   angle: Once main stops serving a cache hit whose score is null (or retries benchmark/correctness timeouts) and stores the eval failure reason, a short before/after post rerunning the 2026-11-25 flaky_host repro (stall on call 7: champion = baseline, 7 bench calls; correctness stall: correct 0, seeds [11]).
   evidence: chi/eval/runner.py:70-78,95-100,122-128, fix commit, rerun of the flaky_host stall repro (scratch pack copy of optimize_function, timeout_seconds 10, scripted adapter resubmitting the accumulate candidate)
   added: 2026-11-25 by the blog routine
+
+- id: dry-run-problem-before-tokens
+  status: published 2026-11-27 /blog/dry-run-agent-benchmark-before-spending-tokens/
+  category: Guide
+  funnel: BOFU
+  query: "dry-run an agent benchmark before spending tokens"
+  angle: chi validate is a schema check. Zero seeds, repeats 0, negative tolerance, a misspelled key and deleted scripts all print OK. A three-candidate scripted dry run (baseline copy, deliberate wrong answer, known-good) through the real evaluator catches the worst of them at $0. With seeds [], the wrong answer became champion.
+  evidence: chi/cli.py:69-80, chi/config.py:97,145-153, chi/eval/runner.py:90-108,122-143, angles.md validateschema, $0 scripted dry runs 2026-11-27
+  added: 2026-11-27 by the blog routine (yesterday was Deep dive/MOFU; every open topic failed rotation, waited on an unlanded fix, or cannibalized chi-vs-pi; no BOFU post in the last 7 days)
+
+- id: validate-semantic-checks-fix
+  status: open
+  category: Release
+  funnel: BOFU
+  query: "chi validate checks problem files"
+  angle: Once chi validate refuses zero seeds, repeats < 1, unknown keys and missing entrypoint/candidate files (or chi run stops on a null baseline score), a short before/after post rerunning the 2026-11-27 broken-copy table and scripted dry runs.
+  evidence: chi/cli.py:69-80, chi/config.py (ProblemConfig extra handling), chi/eval/runner.py:90-108,122-143, fix commit, rerun of the five broken optimize_function copies
+  added: 2026-11-27 by the blog routine
