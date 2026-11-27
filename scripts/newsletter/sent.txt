@@ -12,6 +12,7 @@
 /blog/coding-agent-loop-without-llm-planner/
 /blog/coding-agent-overfits-benchmark/
 /blog/detect-agent-loop-plateau-rules/
+/blog/dry-run-agent-benchmark-before-spending-tokens/
 /blog/first-autoresearch-loop-no-api-key/
 /blog/flaky-benchmark-timeout-agent-loop/
 /blog/getchi-0-2-0-release-notes/
