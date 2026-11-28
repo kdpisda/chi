@@ -391,3 +391,12 @@ late), 3 MOFU (how chi solves it), 1 BOFU (install, get started, compare).
   angle: Once chi validate refuses zero seeds, repeats < 1, unknown keys and missing entrypoint/candidate files (or chi run stops on a null baseline score), a short before/after post rerunning the 2026-11-27 broken-copy table and scripted dry runs.
   evidence: chi/cli.py:69-80, chi/config.py (ProblemConfig extra handling), chi/eval/runner.py:90-108,122-143, fix commit, rerun of the five broken optimize_function copies
   added: 2026-11-27 by the blog routine
+
+- id: maximize-signed-metric
+  status: published 2026-11-28 /blog/maximize-metric-coding-agent-loop/
+  category: Deep dive
+  funnel: MOFU
+  query: "maximize a metric with a coding agent loop"
+  angle: direction maximize is honored by every score comparison, but the evaluator drops any sample <= 0 regardless of direction (runner.py:137, sample.py:39), so a signed metric (percent faster than reference) leaves a run with no baseline and no champion. Three pack copies (throughput, percent, ratio) replayed offline; fix is a positive-by-construction ratio.
+  evidence: chi/eval/runner.py:133-140, chi/eval/sample.py:39, chi/store/ledger.py:56-64, chi/eval/noise.py, chi/director/review.py:31-41, chi/eval/autosubmit.py:58-63, chi/eval/holdout.py:81-87, scripted runs on optimize_function copies
+  added: 2026-11-28 by the blog routine (from angles.md maximizesign; X post 10-28 text not reused; yesterday was Guide/BOFU, so gap-analysis-roadmap (Release, no newly shipped evidence) was passed over again)
